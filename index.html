@@ -106,8 +106,8 @@ button{font-family:inherit;}
 .menu-btn-list .btn{width:100%;}
 
 /* ---- GAME ---- */
-#screen-game{padding:calc(5px + var(--safe-t)) 10px calc(4px + var(--safe-b)); width:100%; max-width:min(640px, 92vh); margin:0 auto;}
-.game-header{display:flex; align-items:center; gap:8px; padding:2px 4px 0px;}
+#screen-game{padding:calc(5px + var(--safe-t)) 0 calc(4px + var(--safe-b)); width:100%;}
+.game-header{display:flex; align-items:center; gap:8px; padding:2px 14px 0px; width:100%;}
 .game-header .lvl-info{flex:1; min-width:0;}
 .game-header .lvl-info b{font-family:var(--font-display); font-size:.98rem; display:block;}
 .game-header .lvl-info span{color:var(--ink-dim); font-size:.7rem;}
@@ -116,14 +116,14 @@ button{font-family:inherit;}
 .pill b{font-family:var(--font-display); font-size:.88rem; font-variant-numeric:tabular-nums; line-height:1.1;}
 .pill span{font-size:.58rem; color:var(--ink-dim); text-transform:uppercase; letter-spacing:.07em; line-height:1;}
 
-.board-wrap{flex:1; position:relative; min-height:0; border-radius:var(--radius-lg); overflow:hidden; background:var(--bg);}
+.board-wrap{flex:1; position:relative; min-height:0; border-radius:var(--radius-lg); overflow:hidden; background:var(--bg); width:calc(100% - 20px); max-width:min(92vh, 92vw, 1100px); margin:0 auto;}
 #three-canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:pointer;}
 #three-canvas:focus-visible{outline:none;}
 
 .toast{position:absolute; bottom:10px; left:50%; transform:translateX(-50%) translateY(10px); background:var(--bg-elevated-2); border:1px solid var(--danger); color:var(--ink); padding:8px 14px; border-radius:999px; font-size:.76rem; opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; box-shadow:var(--shadow-soft); z-index:5;}
 .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
-.game-footer{display:flex; gap:6px; padding-top:8px; justify-content:center;}
+.game-footer{display:flex; gap:6px; padding-top:8px; justify-content:center; width:calc(100% - 20px); max-width:min(92vh, 92vw, 1100px); margin:0 auto;}
 .game-footer .btn{flex:0 1 100px; flex-direction:column; gap:2px; padding:7px 4px; position:relative;}
 .game-footer .btn small{font-size:.58rem; font-weight:500; opacity:.85;}
 .game-footer .btn svg{width:16px; height:16px;}
@@ -686,7 +686,7 @@ const Audio_ = (function(){
 const SceneMgr = (function(){
   let renderer, scene, camera, ambientLight, dirLight, hemiLight;
   let tileGroup=[], labelPool=[], tokenPool=[], threadMesh=null, threadHead=null, winFlySprite=null, groutMesh=null, pressPulse=null;
-  let rows=5, cols=5, cellSize=1.06;
+  let rows=5, cols=5, cellSize=1.06, camDist=12;
   let camBaseFrom=new THREE.Vector3(), camTargetFrom=new THREE.Vector3();
   let baseHalfW=1, baseHalfH=1, introZoom=1, snapZoom=1;
   let threadColorHead=new THREE.Color(0xffffff), threadColorTail=new THREE.Color(0x666666);
@@ -700,13 +700,7 @@ const SceneMgr = (function(){
   let pulseRing = null; // side material of whichever token is currently "next" — pulsed in tick()
 
   // elastic grow-in animation for the thread's newest segment
-  let elasticActive=false, elasticFrom=null, elasticTo=null, elasticStart=0, elasticBasePts=null, elasticWidth=0.1, prevPtsLen=0;
-  function easeOutElastic(t){
-    if(t<=0) return 0;
-    if(t>=1) return 1;
-    const c4 = (2*Math.PI)/3;
-    return Math.pow(2,-10*t)*Math.sin((t*10-0.75)*c4)+1;
-  }
+  let elasticActive=false, elasticFrom=null, elasticTo=null, elasticStart=0, elasticBasePts=null, elasticWidth=0.1, prevPts=null;
   function easeOutBack(t){
     const c1=1.70158, c3=c1+1;
     return 1 + c3*Math.pow(t-1,3) + c1*Math.pow(t-1,2);
@@ -722,7 +716,7 @@ const SceneMgr = (function(){
   function init(canvasEl){
     canvas = canvasEl;
     renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 3));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // without tone mapping, bright/light-colored materials just hard-clip to pure
@@ -874,30 +868,45 @@ const SceneMgr = (function(){
   }
 
   function makeNumberSprite(num){
-    const size = 512; // higher res than before — was blurring on scale-up
+    const size = 1536; // pushed again — more texel density surviving
+    // mipmap minification is the single biggest lever on perceived sharpness
     const c = document.createElement('canvas'); c.width=size; c.height=size;
     const g = c.getContext('2d');
     g.clearRect(0,0,size,size);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    // soft drop shadow instead of a thick stroke outline — reads as depth
-    // rather than a cartoon sticker
-    g.shadowColor = 'rgba(0,0,0,0.4)';
-    g.shadowBlur = size*0.05;
-    g.shadowOffsetY = size*0.015;
-    g.font = '800 '+Math.round(size*0.56)+'px "Space Grotesk", sans-serif';
+    g.font = '800 '+Math.round(size*0.58)+'px "Space Grotesk", "Arial Black", sans-serif';
+    // near-zero shadow blur for a hint of depth, then a thick solid white
+    // stroke fattening the glyph's own edge before the fill — the stroke is
+    // what actually survives mipmap minification; a thin fill alone thins
+    // out to a blurry smear once the plane is shrunk down for real gameplay
+    g.shadowColor = 'rgba(0,0,0,0.5)';
+    g.shadowBlur = size*0.004;
+    g.shadowOffsetY = size*0.008;
+    g.lineJoin = 'round';
+    g.lineWidth = size*0.028;
+    g.strokeStyle = '#ffffff';
+    g.strokeText(String(num), size/2, size/2+size*0.03);
+    g.shadowColor = 'transparent';
     g.fillStyle = '#ffffff';
     g.fillText(String(num), size/2, size/2+size*0.03);
     const tex = new THREE.CanvasTexture(c);
     if('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
+    // without this, numbers on bigger boards (viewed from further back, and
+    // during the win flythrough's tilt) sample mipmaps at an angle and read
+    // noticeably softer than on small boards
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
     tex.needsUpdate = true;
     // a flat plane glued to the board surface (not a camera-facing billboard)
     // so numbers stay "printed on" the tiles during the win flythrough's tilt
     const geo = new THREE.PlaneGeometry(1,1);
     const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-      map:tex, transparent:true, depthTest:false, depthWrite:false, toneMapped:false
+      map:tex, transparent:true, depthTest:false, depthWrite:false, toneMapped:false, fog:false
     }));
     mesh.rotation.x = -Math.PI/2;
-    mesh.scale.set(cellSize*0.32, cellSize*0.32, 1);
+    // slightly bigger than before (0.32 -> 0.36) — a larger glyph occupies
+    // more actual screen pixels, which reads as sharper independent of the
+    // texture/mipmap improvements above
+    mesh.scale.set(cellSize*0.36, cellSize*0.36, 1);
     mesh.renderOrder = 10;
     return mesh;
   }
@@ -945,7 +954,7 @@ const SceneMgr = (function(){
 
   function buildBoard(newRows, newCols, totalNumbers){
     rows=newRows; cols=newCols;
-    elasticActive=false; prevPtsLen=0; popQueue=[]; introActive=false;
+    elasticActive=false; prevPts=null; popQueue=[]; introActive=false;
     flashActive=false; shakeActive=false;
     if(invalidFlashMesh) invalidFlashMesh.visible=false;
     if(threadMesh) threadMesh.position.set(0,0,0);
@@ -987,10 +996,14 @@ const SceneMgr = (function(){
     }
     // pooled checkpoint tokens: a short flat coin/chip (colored rim + dark face)
     // with the number on top — thin like a real chip, never a raised ball
-    const chipGeo = new THREE.CylinderGeometry(cellSize*0.25, cellSize*0.25, 0.06, 32);
+    const chipGeo = new THREE.CylinderGeometry(cellSize*0.2, cellSize*0.2, 0.06, 64);
     for(let i=0;i<totalNumbers;i++){
       const sideMat = new THREE.MeshStandardMaterial({color:0xffffff, emissive:0x000000, emissiveIntensity:0, roughness:0.35, metalness:0.35});
-      const faceMat = new THREE.MeshStandardMaterial({color:0x000000, roughness:0.6, metalness:0.05});
+      // unlit + fog-immune: this is the disc the number sits on, so it needs to
+      // stay a flat, consistent dark tone for contrast — lighting/fog on it was
+      // tinting it lighter/grayer under strong ambient themes and on far boards,
+      // which is exactly what was making the numbers read as washed-out/blurry
+      const faceMat = new THREE.MeshBasicMaterial({color:0x000000, fog:false, toneMapped:false});
       const chip = new THREE.Mesh(chipGeo, [sideMat, faceMat, faceMat]);
       chip.castShadow = false; chip.receiveShadow = false;
       chip.visible = false;
@@ -1002,6 +1015,7 @@ const SceneMgr = (function(){
     }
 
     const diag = Math.max(rows,cols)*cellSize;
+    camDist = diag*2.2;
     camBaseFrom.set(0, diag*2.2, 0);
     camTargetFrom.set(0,0,0);
     camera.up.set(0,0,-1);
@@ -1026,13 +1040,32 @@ const SceneMgr = (function(){
     scene.add(dirLight.target);
 
     applyTheme(currentTheme);
+
+    // WebGL compiles a material's shader program lazily on its first real
+    // draw call. The rope's ribbon material never has any actual geometry
+    // until the player's first move, so that compile — a one-time stutter —
+    // was landing exactly on the first move's animation instead of here,
+    // hidden behind the intro zoom where a dropped frame goes unnoticed.
+    const warmGeo = buildRibbonGeometry([[0,0],[0.001,0]], 0.05, threadColorHead, threadColorTail);
+    threadMesh.geometry.dispose();
+    threadMesh.geometry = warmGeo;
+    threadMesh.visible = true;
+    renderer.compile(scene, camera);
+    threadMesh.geometry.dispose();
+    threadMesh.geometry = new THREE.BufferGeometry();
+    threadMesh.visible = false;
   }
 
   function applyTheme(themeKey){
     currentTheme = themeKey;
     const t3 = THEME_3D[themeKey] || THEME_3D.dark;
     scene.background = new THREE.Color(t3.bg);
-    scene.fog = new THREE.Fog(t3.fog, 9, 26);
+    // fixed offsets *from the camera's distance* (not fixed world coordinates) —
+    // camera height scales with board size (see camDist), so anchoring fog to
+    // absolute near/far values made bigger boards (hard/extreme) sit much
+    // deeper into the fog window than easy/medium ever did. Offsets tuned to
+    // match the original easy-board feel at every board size.
+    scene.fog = new THREE.Fog(t3.fog, camDist-2.66, camDist+14.34);
     ambientLight.color.set(t3.ambient); ambientLight.intensity = t3.ambientI;
     dirLight.color.set(t3.dir); dirLight.intensity = t3.dirI;
     tileGroup.forEach((t,i)=>{
@@ -1058,7 +1091,7 @@ const SceneMgr = (function(){
         popQueue.push({chip, lbl, startAt: now + i*32});
       } else {
         if(chip){ chip.visible=true; chip.scale.setScalar(1); }
-        if(lbl){ lbl.visible=true; lbl.scale.setScalar(cellSize*0.32); }
+        if(lbl){ lbl.visible=true; lbl.scale.setScalar(cellSize*0.36); }
       }
     });
   }
@@ -1102,23 +1135,43 @@ const SceneMgr = (function(){
       threadMesh.material.emissiveIntensity = t3.glow;
       threadMesh.visible = true;
       elasticWidth = cellSize*0.55;
-      // animate only the common case — exactly one new point appended to an
-      // existing thread; anything else (undo, restart, resume, hint-jump) snaps
-      if(pts.length===prevPtsLen+1 && prevPtsLen>=1 && store.settings.motion){
+      // animate the common cases — one point appended (move) or removed
+      // (undo) off the end of an existing thread; anything bigger (restart,
+      // resume, hint-jump) snaps. Both directions reuse the same tween: slide
+      // the head between its old and new position along the unchanged base.
+      // also skip the tween while the board's own intro zoom is still
+      // playing — a very fast first move landing inside that ~700ms window
+      // meant the camera frustum and the rope were both animating at once,
+      // which read as jank/stutter rather than a clean grow. Once the intro
+      // settles, every following move gets the full smooth tween.
+      if(prevPts && pts.length===prevPts.length+1 && store.settings.motion && !introActive){
         elasticActive = true;
-        elasticFrom = pts[prevPtsLen-1];
+        elasticFrom = prevPts[prevPts.length-1];
         elasticTo = pts[pts.length-1];
         elasticBasePts = pts.slice(0,-1);
+        elasticStart = performance.now();
+      } else if(prevPts && pts.length===prevPts.length-1 && prevPts.length>=2 && store.settings.motion && !introActive){
+        // shrink: keep the FULL new path as the base (it already ends at the
+        // correct new tail/corner) and animate a trailing point sliding from
+        // the old removed tail back onto that same spot. Slicing off the new
+        // path's own last point here (like the grow branch does) would drop
+        // the corner being retracted around, so on an L-shaped turn the
+        // animated segment cut a straight diagonal shortcut through the
+        // corner instead of retracting back along the real path.
+        elasticActive = true;
+        elasticFrom = prevPts[prevPts.length-1];
+        elasticTo = pts[pts.length-1];
+        elasticBasePts = pts.slice();
         elasticStart = performance.now();
       } else {
         elasticActive = false;
         threadMesh.geometry.dispose();
         threadMesh.geometry = buildRibbonGeometry(pts, elasticWidth, threadColorHead, threadColorTail);
       }
-      prevPtsLen = pts.length;
+      prevPts = pts;
     } else {
       elasticActive = false;
-      prevPtsLen = userPath.length;
+      prevPts = userPath.map(([r,c])=>{ const w=cellWorld(r,c); return [w.x, w.z]; });
       threadMesh.geometry.dispose();
       threadMesh.geometry = new THREE.BufferGeometry();
       threadMesh.visible = false;
@@ -1242,7 +1295,7 @@ const SceneMgr = (function(){
         const t = Math.min(1, (now-item.startAt)/260);
         const e = Math.max(0.001, easeOutBack(t));
         if(item.chip) item.chip.scale.setScalar(e);
-        if(item.lbl) item.lbl.scale.setScalar(cellSize*0.32*e);
+        if(item.lbl) item.lbl.scale.setScalar(cellSize*0.36*e);
         if(t>=1) popQueue.splice(i,1);
       }
     }
@@ -1257,7 +1310,7 @@ const SceneMgr = (function(){
     }
     if(elasticActive){
       const t = Math.min(1, (performance.now()-elasticStart)/260);
-      const e = easeOutElastic(t);
+      const e = easeOutCubic(t);
       const curLast = [
         elasticFrom[0] + (elasticTo[0]-elasticFrom[0])*e,
         elasticFrom[1] + (elasticTo[1]-elasticFrom[1])*e
@@ -1534,6 +1587,12 @@ async function startPuzzle(diffKey){
     if(hist.length>300) hist.splice(0, hist.length-300);
     persist();
   }
+  // number labels are baked into a canvas texture once per board — if the
+  // Space Grotesk webfont hasn't finished loading yet (very likely on a cold
+  // first load), canvas silently falls back to a thinner system font and the
+  // digits look mushy/blurry for the rest of that puzzle. Wait for fonts to
+  // be ready before baking so it's never a race.
+  try{ if(document.fonts && document.fonts.status!=='loaded') await document.fonts.ready; }catch(e){}
   finishStartPuzzle(puzzle, diffKey, seedStr);
 }
 
@@ -1791,12 +1850,19 @@ els.canvas.addEventListener('keydown', (e)=>{
     // so it always acts on wherever the path actually is right now (fixes it
     // going stale after Restart/Undo, which don't reset a tracked cursor)
     let head = game.userPath.length ? game.userPath[game.userPath.length-1] : null;
-    let changed = false;
     if(!head){
       for(const key in game.checkpoints){
         if(game.checkpoints[key]===1){
           head = key.split(',').map(Number);
-          if(tryExtendTo(head)) changed = true;
+          // flush this as its own board update before taking the step below —
+          // otherwise both the start-placement AND the first real move land in
+          // the same call, so the rope jumps straight from a 0-point to a
+          // 2-point path with no 1-point state in between. The animator only
+          // recognizes a smooth grow when it sees exactly one point added
+          // since its last known state, so that combined jump snapped instead
+          // of tweening (this only ever showed up on keyboard — mouse/touch
+          // naturally fire the placement and the move as separate events).
+          if(tryExtendTo(head)) onBoardChanged();
           break;
         }
       }
@@ -1804,6 +1870,7 @@ els.canvas.addEventListener('keydown', (e)=>{
     // whether this press just placed the start or the rope already existed,
     // go ahead and take the actual step in the pressed direction too — a
     // first press should never feel like a no-op
+    let changed = false;
     if(head){
       const [dr,dc] = dirs[e.key];
       const nr = head[0]+dr, nc = head[1]+dc;
