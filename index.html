@@ -72,6 +72,11 @@ button{font-family:inherit;}
 .card{width:min(440px,92vw); background:var(--bg-elevated); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; margin-top:18px; box-shadow:var(--shadow-soft); backdrop-filter:blur(6px);}
 .card h2{font-family:var(--font-display); font-size:.75rem; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-faint); margin:0 0 10px;}
 .diff-grid{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
+.diff-grid .daily-tile:last-child{grid-column:1 / -1;}
+.daily-tile{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset;}
+.daily-tile strong{color:var(--accent);}
+.daily-tile.done{border-color:var(--line); box-shadow:none; opacity:.75; cursor:default;}
+.daily-tile.done strong{color:var(--ink-faint);}
 .diff-btn{background:var(--bg-elevated-2); border:1px solid var(--line); color:var(--ink); border-radius:var(--radius-md); padding:11px 10px; text-align:left; cursor:pointer; transition:transform .15s, border-color .15s;}
 .diff-btn[aria-pressed="true"]{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset;}
 .diff-btn:active{transform:scale(.97);}
@@ -171,6 +176,7 @@ button{font-family:inherit;}
 .setting-row{display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); gap:10px;}
 .setting-row:last-of-type{border-bottom:none;}
 .setting-row span{font-size:.88rem;}
+.credit-pill{margin:12px 0px; color:var(--ink-faint); font-family:var(--font-display); font-size:.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.14em; text-align:center;}
 .switch{position:relative; width:44px; height:25px; background:var(--bg-elevated-2); border:1px solid var(--line); border-radius:999px; cursor:pointer; flex:none;}
 .switch i{position:absolute; top:2px; left:2px; width:19px; height:19px; border-radius:50%; background:var(--ink-faint); transition:transform .2s, background .2s;}
 .switch.on{background:var(--accent-soft); border-color:var(--accent);}
@@ -210,7 +216,7 @@ button{font-family:inherit;}
       <div class="theme-row" id="theme-row" role="group" aria-label="Theme"></div>
       <div class="menu-btn-list">
         <button class="btn btn-ghost" id="btn-open-settings">⚙ Settings</button>
-        <button class="btn btn-ghost" id="btn-open-stats">📊 Statistics</button>
+        <button class="btn btn-ghost" id="btn-open-stats"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg> Statistics</button>
       </div>
     </div>
   </section>
@@ -278,6 +284,7 @@ button{font-family:inherit;}
     <div class="setting-row"><span>Sound effects</span><div class="switch on" id="switch-sound" role="switch" aria-checked="true" tabindex="0"><i></i></div></div>
     <div class="setting-row"><span>Reduce motion</span><div class="switch" id="switch-motion" role="switch" aria-checked="false" tabindex="0"><i></i></div></div>
     <div class="setting-row"><span>Clear saved data</span><button class="btn btn-ghost" id="btn-clear-data" style="padding:8px 14px;">Clear</button></div>
+    <div class="credit-pill">Made By Mind</div>
     <div class="row-actions" style="margin-top:6px;"><button class="btn btn-primary" id="btn-close-settings">Done</button></div>
   </div>
 </div>
@@ -358,15 +365,28 @@ store.settings = Object.assign({theme:'dark', sound:true, motion:true}, store.se
 if(!['dark','marble','wood','ocean'].includes(store.settings.theme)) store.settings.theme = 'dark';
 store.stats = Object.assign({gamesStarted:0, wins:0, streak:0, lastWinDay:null, bestTimeByDiff:{}, playtimeSec:0}, store.stats||{});
 store.history = Object.assign({easy:[], medium:[], hard:[], extreme:[]}, store.history||{});
+store.daily = Object.assign({date:null, seed:null, puzzle:null, completed:false, completedTime:null, streak:0, lastCompletedDay:null}, store.daily||{});
+// a stable per-install id — mixed into the daily puzzle's seed so everyone
+// gets a *different* board for the same calendar day, not one shared puzzle
+if(!store.playerId){
+  store.playerId = 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+}
+persist();
 
 /* =========================================================
    4. DIFFICULTY + THEMES
    ========================================================= */
 const DIFFICULTIES = [
-  {key:'easy',    label:'Easy',    rows:5, cols:5, checkpointCount:[8,11],  blurb:'5×5 · open space, easy numbers'},
-  {key:'medium',  label:'Medium',  rows:6, cols:6, checkpointCount:[8,10], blurb:'6×6 · more space, fewer numbers'},
-  {key:'hard',    label:'Hard',    rows:7, cols:7, checkpointCount:[8,10],  blurb:'7×7 · sparse — plan ahead'},
-  {key:'extreme', label:'Extreme', rows:8, cols:8, checkpointCount:[8,10],  blurb:'8×8 · brutal, barely a hint'},
+  {key:'easy',    label:'Easy',    rows:5, cols:5, checkpointCount:[8,11],  blurb:'5×5 · open space, easy numbers', hints:2, wallCount:[0,0]},
+  {key:'medium',  label:'Medium',  rows:6, cols:6, checkpointCount:[8,10], blurb:'6×6 · more space, fewer numbers', hints:1, wallCount:[0,0]},
+  {key:'hard',    label:'Hard',    rows:7, cols:7, checkpointCount:[4,6],  blurb:'7×7 · sparse numbers, no hints', hints:0, wallCount:[5,7]},
+  {key:'extreme', label:'Extreme', rows:8, cols:8, checkpointCount:[3,5],  blurb:'8×8 · brutal, no hints', hints:0, wallCount:[7,11]},
+  // not a player-facing difficulty — reuses the same generation machinery
+  // (diffByKey, hints, wallCount) so the daily puzzle needs zero special-casing
+  // in the generator/worker. Kept out of the picker grid via `hidden`. This is
+  // the old "Insane" tier's settings — folded into the daily puzzle instead
+  // of being its own selectable difficulty.
+  {key:'daily',   label:'Daily',   rows:9, cols:9, checkpointCount:[3,6],  blurb:'', hints:0, wallCount:[9,13], hidden:true},
 ];
 function diffByKey(k){ return DIFFICULTIES.find(d=>d.key===k) || DIFFICULTIES[0]; }
 
@@ -377,10 +397,10 @@ const THEMES = [
   {key:'ocean',   label:'Ocean'},
 ];
 const THEME_3D = {
-  dark:   {bg:0x0e1016, tileA:0x1a1f2c, tileB:0x1e2432, fog:0x0e1016, ambient:0x8892aa, ambientI:0.55, dir:0xf3f6ff, dirI:1.0,  rough:0.65, metal:0.15, glow:0.9,  accent:0x4ee6a8, rope:0x7dcfc3, ropeTail:0x6ba39a},
-  marble: {bg:0xe9e6df, tileA:0xffffff, tileB:0xc9c0aa, fog:0xe9e6df, ambient:0xffffff, ambientI:0.9,  dir:0xfff8ef, dirI:1.1,  rough:0.42, metal:0.04, glow:0.58, accent:0x0f9d8c, rope:0x2bbfac, ropeTail:0x0b6b5e},
-  wood:   {bg:0x241812, tileA:0x4a3323, tileB:0x412c1e, fog:0x241812, ambient:0xffcf9e, ambientI:0.55, dir:0xffddb0, dirI:0.95, rough:0.85, metal:0.02, glow:0.44, accent:0xe4cd9e, rope:0xe4cd9e, ropeTail:0x93713f},
-  ocean:  {bg:0x061c26, tileA:0x0e3140, tileB:0x0a2836, fog:0x061c26, ambient:0x7ee0ec, ambientI:0.55, dir:0xbdf3ff, dirI:0.95, rough:0.3,  metal:0.25, glow:0.62, accent:0x28c7d6, rope:0x28c7d6, ropeTail:0x0f5f68},
+  dark:   {bg:0x0e1016, tileA:0x1a1f2c, tileB:0x1e2432, fog:0x0e1016, ambient:0x8892aa, ambientI:0.55, dir:0xf3f6ff, dirI:1.0,  rough:0.65, metal:0.15, glow:0.9,  accent:0x4ee6a8, rope:0x146b5f, ropeTail:0x062e28, wall:0x8f97ab},
+  marble: {bg:0xe9e6df, tileA:0xffffff, tileB:0xc9c0aa, fog:0xe9e6df, ambient:0xffffff, ambientI:0.9,  dir:0xfff8ef, dirI:1.1,  rough:0.42, metal:0.04, glow:0.4, accent:0x0f9d8c, rope:0x146b5f, ropeTail:0x062e28, wall:0x555555},
+  wood:   {bg:0x241812, tileA:0x4a3323, tileB:0x412c1e, fog:0x241812, ambient:0xffcf9e, ambientI:0.55, dir:0xffddb0, dirI:0.95, rough:0.85, metal:0.02, glow:0.44, accent:0xe4cd9e, rope:0xe4cd9e, ropeTail:0x93713f, wall:0x8a6a3f},
+  ocean:  {bg:0x061c26, tileA:0x0e3140, tileB:0x0a2836, fog:0x061c26, ambient:0x7ee0ec, ambientI:0.55, dir:0xbdf3ff, dirI:0.95, rough:0.3,  metal:0.25, glow:0.62, accent:0x28c7d6, rope:0x28c7d6, ropeTail:0x041519, wall:0xcdf5f0},
 };
 
 /* =========================================================
@@ -591,6 +611,39 @@ function solvePuzzle(rows, cols, checkpointMap, totalNumbers, budget, limit){
   return {count:solutions, solution:firstSolution, hitBudget};
 }
 
+// canonical "r1,c1-r2,c2" key for an edge between two grid-adjacent cells,
+// always ordered smaller-cell-first so both directions hash the same
+function edgeKey(r1,c1,r2,c2){
+  if(r1>r2 || (r1===r2 && c1>c2)){ const tr=r1,tc=c1; r1=r2; c1=c2; r2=tr; c2=tc; }
+  return r1+','+c1+'-'+r2+','+c2;
+}
+
+// picks wallCount grid edges to block as walls — only from edges the solved
+// path never actually crosses, so the known solution always stays intact.
+// Since a Hamiltonian path visits every cell, every "extra" grid edge (any
+// two grid-adjacent cells not consecutive in the path) is a safe candidate;
+// blocking one only removes a shortcut/detour, never the real route.
+function buildWalls(path, rows, cols, wallCount, rng){
+  if(!wallCount) return [];
+  const used = new Set();
+  for(let i=0;i<path.length-1;i++){
+    const [r1,c1] = path[i], [r2,c2] = path[i+1];
+    used.add(edgeKey(r1,c1,r2,c2));
+  }
+  const candidates = [];
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      if(c<cols-1){ const k = edgeKey(r,c,r,c+1); if(!used.has(k)) candidates.push(k); }
+      if(r<rows-1){ const k = edgeKey(r,c,r+1,c); if(!used.has(k)) candidates.push(k); }
+    }
+  }
+  for(let i=candidates.length-1;i>0;i--){
+    const j = Math.floor(rng()*(i+1));
+    const t = candidates[i]; candidates[i]=candidates[j]; candidates[j]=t;
+  }
+  return candidates.slice(0, Math.min(wallCount, candidates.length));
+}
+
 function generatePuzzle(cfg, seedStr){
   const rngMaster = makeRng(seedStr+':'+cfg.key);
   const wallStart = Date.now();
@@ -608,7 +661,10 @@ function generatePuzzle(cfg, seedStr){
     // bigger boards — the win check only needs *a* valid completion (see checkWin),
     // so we accept the least-ambiguous candidate found within the time budget.
     const verify = solvePuzzle(cfg.rows, cfg.cols, map, total, 30000, 2);
-    const puzzle = {rows:cfg.rows, cols:cfg.cols, path, checkpoints:map, totalNumbers:total, diffKey:cfg.key, seed:seedStr};
+    const [wlo,whi] = cfg.wallCount||[0,0];
+    const wallCount = wlo>=whi ? wlo : Math.round(wlo + rngMaster()*(whi-wlo));
+    const walls = buildWalls(path, cfg.rows, cfg.cols, wallCount, rngMaster);
+    const puzzle = {rows:cfg.rows, cols:cfg.cols, path, checkpoints:map, totalNumbers:total, diffKey:cfg.key, seed:seedStr, walls};
     if(verify.count===1 && !verify.hitBudget) return puzzle;
     const score = verify.hitBudget ? 500 : verify.count;
     if(score < bestScore){ bestScore = score; best = puzzle; }
@@ -644,7 +700,7 @@ function generatePuzzleAsync(diffKey, seedStr){
   const id = ++puzzleWorkerReqId;
   return new Promise(resolve=>{
     puzzleWorkerPending.set(id, resolve);
-    worker.postMessage({id, cfg:{key:cfg.key, rows:cfg.rows, cols:cfg.cols, checkpointCount:cfg.checkpointCount}, seedStr});
+    worker.postMessage({id, cfg:{key:cfg.key, rows:cfg.rows, cols:cfg.cols, checkpointCount:cfg.checkpointCount, wallCount:cfg.wallCount||[0,0]}, seedStr});
   });
 }
 
@@ -686,12 +742,14 @@ const Audio_ = (function(){
 const SceneMgr = (function(){
   let renderer, scene, camera, ambientLight, dirLight, hemiLight;
   let tileGroup=[], labelPool=[], tokenPool=[], threadMesh=null, threadHead=null, winFlySprite=null, groutMesh=null, pressPulse=null;
+  let wallMeshes=[], wallGeo=null, wallMat=null;
   let rows=5, cols=5, cellSize=1.06, camDist=12;
   let camBaseFrom=new THREE.Vector3(), camTargetFrom=new THREE.Vector3();
   let baseHalfW=1, baseHalfH=1, introZoom=1, snapZoom=1;
   let threadColorHead=new THREE.Color(0xffffff), threadColorTail=new THREE.Color(0x666666);
   let threadHeadBaseScale=1;
-  let invalidFlashMesh=null, flashActive=false, flashStart=0;
+  let invalidFlashMesh=null, invalidRingMesh=null, flashActive=false, flashStart=0;
+  let cellTokenIndex={}, invalidLabelMat=null;
   let shakeActive=false, shakeStart=0;
   let raycaster, mouseVec = new THREE.Vector2();
   let canvas, onCellTap=null;
@@ -781,6 +839,18 @@ const SceneMgr = (function(){
     invalidFlashMesh.visible = false;
     scene.add(invalidFlashMesh);
 
+    // a red ring that sits right around a checkpoint chip when the rejected
+    // move landed on one — the tile flash alone didn't read as "this
+    // checkpoint" the way a reddened chip border does in the reference
+    invalidRingMesh = new THREE.Mesh(
+      new THREE.RingGeometry(cellSize*0.21, cellSize*0.245, 32),
+      new THREE.MeshBasicMaterial({color:0xff4d4d, transparent:true, opacity:0, side:THREE.DoubleSide, depthTest:false})
+    );
+    invalidRingMesh.rotation.x = -Math.PI/2;
+    invalidRingMesh.renderOrder = 11;
+    invalidRingMesh.visible = false;
+    scene.add(invalidRingMesh);
+
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
@@ -827,7 +897,7 @@ const SceneMgr = (function(){
     const easeInOutCubic = (t)=> t<0.5 ? 4*t*t*t : 1-Math.pow(-2*t+2,3)/2;
     // starts already blended a bit toward the dark end instead of pure full-light,
     // so even the very first segment isn't too light
-    const colorAt = (i)=> new THREE.Color().copy(colorFrom).lerp(colorTo, 0.55 + easeInOutCubic(Math.min(1,i/totalCells))*0.45);
+    const colorAt = (i)=> new THREE.Color().copy(colorFrom).lerp(colorTo, 0.78 + easeInOutCubic(Math.min(1,i/totalCells))*0.22);
     for(let i=0;i<points.length-1;i++){
       const [x1,z1] = points[i], [x2,z2] = points[i+1];
       const dx=x2-x1, dz=z2-z1;
@@ -957,6 +1027,8 @@ const SceneMgr = (function(){
     elasticActive=false; prevPts=null; popQueue=[]; introActive=false;
     flashActive=false; shakeActive=false;
     if(invalidFlashMesh) invalidFlashMesh.visible=false;
+    if(invalidRingMesh) invalidRingMesh.visible=false;
+    if(invalidLabelMat){ invalidLabelMat.color.set(0xffffff); invalidLabelMat=null; }
     if(threadMesh) threadMesh.position.set(0,0,0);
     tileGroup.forEach(t=> scene.remove(t.mesh));
     tileGroup = [];
@@ -964,6 +1036,8 @@ const SceneMgr = (function(){
     labelPool = [];
     tokenPool.forEach(m=>{ scene.remove(m); m.material.forEach(mm=>mm.dispose()); });
     tokenPool = [];
+    wallMeshes.forEach(m=> scene.remove(m));
+    wallMeshes = [];
 
     const t3 = THEME_3D[currentTheme];
     if(groutMesh){ scene.remove(groutMesh); groutMesh.geometry.dispose(); groutMesh.material.dispose(); }
@@ -1074,13 +1148,16 @@ const SceneMgr = (function(){
       t.mesh.material.metalness = t3.metal;
     });
     if(groutMesh) groutMesh.material.color.set(resolveGroutColor(t3));
+    if(wallMat) wallMat.color.set(t3.wall || 0xc3c9d4);
   }
 
   function setCheckpoints(list){
     popQueue = [];
     const now = performance.now();
     const animate = store.settings.motion;
+    cellTokenIndex = {};
     list.forEach((cp,i)=>{
+      cellTokenIndex[cp.r+','+cp.c] = i;
       const w = cellWorld(cp.r, cp.c);
       const chip = tokenPool[i], lbl = labelPool[i];
       if(chip) chip.position.set(w.x, 0.11, w.z);
@@ -1093,6 +1170,42 @@ const SceneMgr = (function(){
         if(chip){ chip.visible=true; chip.scale.setScalar(1); }
         if(lbl){ lbl.visible=true; lbl.scale.setScalar(cellSize*0.36); }
       }
+    });
+  }
+
+  // Draws the puzzle's blocked edges as short bars sitting on the border
+  // between two grid-adjacent cells — the rope is physically not allowed to
+  // cross one (see isWalled() in the game logic). Only appears on Hard/Extreme.
+  function setWalls(list){
+    wallMeshes.forEach(m=> scene.remove(m));
+    wallMeshes = [];
+    if(!wallGeo){
+      // long on one axis, thin on the other — reused for both orientations
+      // by rotating 90° rather than building two separate geometries. Radius
+      // is a big fraction of the half-width so the short ends read as a
+      // clean rounded pill cap (like the reference), not a barely-softened
+      // rectangle corner.
+      wallGeo = makeRoundedTileGeometry(cellSize*0.09, cellSize*0.9, 0.045, cellSize*0.045);
+      const t3 = THEME_3D[currentTheme] || THEME_3D.dark;
+      // unlit on purpose: a lit material under marble's very bright ambient
+      // (0.9) + directional (1.1) light was blowing the gray out toward
+      // white, making it disappear entirely against the white tiles. Unlit
+      // means whatever hex is set here is exactly what renders, in every theme.
+      wallMat = new THREE.MeshBasicMaterial({color:t3.wall||0x9aa2b5, fog:false});
+    }
+    (list||[]).forEach(key=>{
+      const [a,b] = key.split('-');
+      const [r1,c1] = a.split(',').map(Number);
+      const [r2,c2] = b.split(',').map(Number);
+      const wa = cellWorld(r1,c1), wb = cellWorld(r2,c2);
+      const mesh = new THREE.Mesh(wallGeo, wallMat);
+      mesh.position.set((wa.x+wb.x)/2, 0.1, (wa.z+wb.z)/2);
+      // r1===r2 → the two cells sit side by side along X, so the blocking
+      // bar needs to run along Z (its built-in long axis) — no rotation.
+      // c1===c2 → cells stacked along Z, so rotate the bar 90° to run along X.
+      if(r1!==r2) mesh.rotation.y = Math.PI/2;
+      scene.add(mesh);
+      wallMeshes.push(mesh);
     });
   }
 
@@ -1134,7 +1247,7 @@ const SceneMgr = (function(){
       threadMesh.material.emissive.copy(threadColorHead);
       threadMesh.material.emissiveIntensity = t3.glow;
       threadMesh.visible = true;
-      elasticWidth = cellSize*0.55;
+      elasticWidth = cellSize*0.44;
       // animate the common cases — one point appended (move) or removed
       // (undo) off the end of an existing thread; anything bigger (restart,
       // resume, hint-jump) snaps. Both directions reuse the same tween: slide
@@ -1212,10 +1325,23 @@ const SceneMgr = (function(){
 
 
   function flashInvalid(cell){
+    if(invalidLabelMat){ invalidLabelMat.color.set(0xffffff); invalidLabelMat=null; }
     if(cell){
       const w = cellWorld(cell[0], cell[1]);
       invalidFlashMesh.position.set(w.x, 0.082, w.z);
       invalidFlashMesh.visible = true;
+      // if the rejected cell is a numbered checkpoint, redden its ring and
+      // its digit too — not just the tile — so it's obvious *which*
+      // checkpoint the move actually conflicted with
+      const idx = cellTokenIndex[cell[0]+','+cell[1]];
+      if(idx!==undefined && tokenPool[idx] && tokenPool[idx].visible){
+        invalidRingMesh.position.set(w.x, 0.145, w.z);
+        invalidRingMesh.visible = true;
+        const lbl = labelPool[idx];
+        if(lbl){ invalidLabelMat = lbl.material; invalidLabelMat.color.set(0xff5252); }
+      } else {
+        invalidRingMesh.visible = false;
+      }
     }
     flashActive = true;
     flashStart = performance.now();
@@ -1328,8 +1454,13 @@ const SceneMgr = (function(){
       if(t>=1){
         flashActive = false;
         invalidFlashMesh.visible = false;
+        invalidRingMesh.visible = false;
+        if(invalidLabelMat){ invalidLabelMat.color.set(0xffffff); invalidLabelMat=null; }
       } else {
-        invalidFlashMesh.material.opacity = Math.max(0, 0.6*(1-t));
+        const fade = Math.max(0, 1-t);
+        invalidFlashMesh.material.opacity = 0.6*fade;
+        if(invalidRingMesh.visible) invalidRingMesh.material.opacity = 0.9*fade;
+        if(invalidLabelMat) invalidLabelMat.color.set(0xffffff).lerp(new THREE.Color(0xff5252), fade);
       }
     }
     if(shakeActive){
@@ -1413,7 +1544,7 @@ const SceneMgr = (function(){
   }
 
   return {
-    init, buildBoard, applyTheme, setCheckpoints, updateBoardState, resize, flashInvalid, shakeOnly, playWinFlythrough,
+    init, buildBoard, applyTheme, setCheckpoints, setWalls, updateBoardState, resize, flashInvalid, shakeOnly, playWinFlythrough,
     set onCellTap(fn){ onCellTap = fn; },
     get __dbg(){ return { camera, renderer, scene, tileGroup, canvas, winFly }; }
   };
@@ -1446,6 +1577,8 @@ const els = {
   winSub: document.getElementById('win-sub'),
   btnWinMenu: document.getElementById('btn-win-menu'),
   btnWinNext: document.getElementById('btn-win-next'),
+  // dailyCard / dailySub / btnDailyPlay are assigned dynamically once the
+  // daily tile is built alongside the difficulty grid — see below
   settingsBackdrop: document.getElementById('settings-backdrop'),
   btnOpenSettings: document.getElementById('btn-open-settings'),
   btnCloseSettings: document.getElementById('btn-close-settings'),
@@ -1478,7 +1611,7 @@ function announce(msg){ els.srStatus.textContent = msg; }
 function keyOf(r,c){ return r+','+c; }
 
 /* ---- difficulty buttons ---- */
-DIFFICULTIES.forEach(d=>{
+DIFFICULTIES.filter(d=>!d.hidden).forEach(d=>{
   const btn = document.createElement('button');
   btn.className='diff-btn'; btn.dataset.key=d.key;
   btn.setAttribute('aria-pressed', d.key===selectedDiff ? 'true':'false');
@@ -1490,6 +1623,21 @@ DIFFICULTIES.forEach(d=>{
   });
   els.diffGrid.appendChild(btn);
 });
+
+/* ---- daily puzzle tile — sits where Insane used to, last in the grid ---- */
+{
+  const tile = document.createElement('button');
+  tile.className = 'diff-btn daily-tile';
+  const sub = document.createElement('small');
+  sub.id = 'daily-tile-sub';
+  tile.innerHTML = '<strong>Daily Puzzle</strong>';
+  tile.appendChild(sub);
+  tile.addEventListener('click', ()=> startDailyPuzzle());
+  els.diffGrid.appendChild(tile);
+  els.dailyCard = tile;
+  els.dailySub = sub;
+  els.btnDailyPlay = tile;
+}
 
 /* ---- theme chips ---- */
 THEMES.forEach(t=>{
@@ -1542,6 +1690,8 @@ els.btnOpenSettings.addEventListener('click', ()=> els.settingsBackdrop.classLis
 els.btnCloseSettings.addEventListener('click', ()=> els.settingsBackdrop.classList.remove('show'));
 els.settingsBackdrop.addEventListener('click', e=>{ if(e.target===els.settingsBackdrop) els.settingsBackdrop.classList.remove('show'); });
 els.btnOpenStats.addEventListener('click', ()=>{ refreshStatsModal(); els.statsBackdrop.classList.add('show'); });
+refreshDailyCard();
+prefetchDailyPuzzle();
 els.btnCloseStats.addEventListener('click', ()=> els.statsBackdrop.classList.remove('show'));
 els.statsBackdrop.addEventListener('click', e=>{ if(e.target===els.statsBackdrop) els.statsBackdrop.classList.remove('show'); });
 els.btnClearData.addEventListener('click', ()=>{
@@ -1563,11 +1713,9 @@ function puzzleSignature(puzzle){
   return puzzle.rows+'x'+puzzle.cols+'|'+keys.map(k=> k+':'+puzzle.checkpoints[k]).join(',');
 }
 
-async function startPuzzle(diffKey){
-  Audio_.unlock();
-  els.btnPlay.disabled = true;
-  const prevLabel = els.btnPlay.textContent;
-  els.btnPlay.textContent = 'Generating…';
+// the actual retry-until-fresh generation, with no UI side effects — reused
+// both for an on-demand start and for silently prefetching in the background
+async function generateFreshPuzzle(diffKey){
   const hist = store.history[diffKey] = store.history[diffKey]||[];
   const seen = new Set(hist);
   let puzzle=null, seedStr=null, sig=null;
@@ -1579,21 +1727,139 @@ async function startPuzzle(diffKey){
     puzzle = candidate; seedStr = candidateSeed; sig = candidateSig;
     if(!seen.has(candidateSig)) break;
   }
-  els.btnPlay.disabled = false;
-  els.btnPlay.textContent = prevLabel;
-  if(!puzzle){ alert('Could not generate a puzzle — please try again.'); return; }
-  if(!seen.has(sig)){
-    hist.push(sig);
-    if(hist.length>300) hist.splice(0, hist.length-300);
+  if(!puzzle) return null;
+  return {puzzle, seedStr, sig};
+}
+
+// One in-flight prefetch per difficulty, started right after a puzzle
+// begins so the *next* one is already done — usually before the player
+// even finishes — by the time Next Puzzle actually gets clicked. Hard/Extreme
+// are exactly the boards slow enough for this to matter.
+const puzzlePrefetch = {};
+function prefetchPuzzle(diffKey){
+  if(!puzzlePrefetch[diffKey]) puzzlePrefetch[diffKey] = generateFreshPuzzle(diffKey);
+}
+
+// Hard/Extreme boards can take a real, noticeable moment to generate (bigger
+// Hamiltonian search + wall placement). Without a guard, mashing Play/Next
+// puzzle while that's in flight fired a new generatePuzzleAsync call on top
+// of the one already running each time — wasted work, and whichever one
+// happened to resolve last silently won. One flag makes every extra click
+// during generation a no-op instead, and both buttons show it's working.
+let puzzleGenerating = false;
+async function startPuzzle(diffKey){
+  if(puzzleGenerating) return;
+  puzzleGenerating = true;
+  Audio_.unlock();
+  const prevPlayLabel = els.btnPlay.textContent;
+  const prevNextLabel = els.btnWinNext.textContent;
+  els.btnPlay.disabled = true; els.btnPlay.textContent = 'Generating…';
+  els.btnWinNext.disabled = true; els.btnWinNext.textContent = 'Generating…';
+  try{
+    let pending = puzzlePrefetch[diffKey];
+    delete puzzlePrefetch[diffKey];
+    if(!pending) pending = generateFreshPuzzle(diffKey);
+    const result = await pending;
+    if(!result){ alert('Could not generate a puzzle — please try again.'); return; }
+    const {puzzle, seedStr, sig} = result;
+    const hist = store.history[diffKey] = store.history[diffKey]||[];
+    if(!hist.includes(sig)){
+      hist.push(sig);
+      if(hist.length>300) hist.splice(0, hist.length-300);
+      persist();
+    }
+    // number labels are baked into a canvas texture once per board — if the
+    // Space Grotesk webfont hasn't finished loading yet (very likely on a cold
+    // first load), canvas silently falls back to a thinner system font and the
+    // digits look mushy/blurry for the rest of that puzzle. Wait for fonts to
+    // be ready before baking so it's never a race.
+    try{ if(document.fonts && document.fonts.status!=='loaded') await document.fonts.ready; }catch(e){}
+    finishStartPuzzle(puzzle, diffKey, seedStr);
+    prefetchPuzzle(diffKey); // start the next one now, while this one's being played
+  } finally {
+    els.btnPlay.disabled = false; els.btnPlay.textContent = prevPlayLabel;
+    els.btnWinNext.disabled = false; els.btnWinNext.textContent = prevNextLabel;
+    puzzleGenerating = false;
+  }
+}
+
+/* =========================================================
+   DAILY PUZZLE — one board a day, seeded per-player so it's
+   not the same puzzle for everyone, locked after it's solved
+   until the calendar date rolls over.
+   ========================================================= */
+function todayKey(){ return new Date().toISOString().slice(0,10); }
+
+// rolls store.daily over to a fresh, not-yet-completed slot whenever the
+// calendar date has changed since the last time this ran
+function ensureDailyPuzzle(){
+  const today = todayKey();
+  if(store.daily.date !== today){
+    store.daily.date = today;
+    store.daily.seed = null;
+    store.daily.puzzle = null;
+    store.daily.completed = false;
+    store.daily.completedTime = null;
     persist();
   }
-  // number labels are baked into a canvas texture once per board — if the
-  // Space Grotesk webfont hasn't finished loading yet (very likely on a cold
-  // first load), canvas silently falls back to a thinner system font and the
-  // digits look mushy/blurry for the rest of that puzzle. Wait for fonts to
-  // be ready before baking so it's never a race.
-  try{ if(document.fonts && document.fonts.status!=='loaded') await document.fonts.ready; }catch(e){}
-  finishStartPuzzle(puzzle, diffKey, seedStr);
+}
+
+// Kicked off the moment the app loads (see call near the menu wiring below)
+// so today's puzzle is very likely already sitting in store.daily.puzzle by
+// the time the player actually clicks Play — that's what makes the
+// "Generating…" state in startDailyPuzzle basically never show up in
+// practice, the same trick already used for regular difficulties.
+let dailyPrefetch = null;
+function prefetchDailyPuzzle(){
+  ensureDailyPuzzle();
+  if(store.daily.puzzle || dailyPrefetch) return;
+  const seedStr = store.playerId+':'+store.daily.date;
+  dailyPrefetch = generatePuzzleAsync('daily', seedStr).then(puzzle=>{
+    if(puzzle){ store.daily.seed = seedStr; store.daily.puzzle = puzzle; persist(); }
+    dailyPrefetch = null;
+    return puzzle;
+  });
+}
+
+function refreshDailyCard(){
+  ensureDailyPuzzle();
+  const done = store.daily.completed;
+  els.dailyCard.classList.toggle('done', done);
+  els.btnDailyPlay.disabled = done;
+  if(done){
+    const streakBit = store.daily.streak>1 ? ' · 🔥 '+store.daily.streak+'-day streak' : '';
+    els.dailySub.textContent = 'Solved in '+formatTime(store.daily.completedTime||0)+streakBit+' · come back tomorrow';
+  } else {
+    els.dailySub.textContent = '9×9 · no hints, 9-13 walls — one shot, resets tomorrow';
+  }
+}
+
+async function startDailyPuzzle(){
+  if(puzzleGenerating) return;
+  ensureDailyPuzzle();
+  if(store.daily.completed) return;
+  puzzleGenerating = true;
+  Audio_.unlock();
+  const prevSub = els.dailySub.textContent;
+  // only announce "Generating…" if there's actually nothing ready yet —
+  // in practice that's almost never true, since prefetchDailyPuzzle already
+  // did the work in the background on load
+  const alreadyReady = !!store.daily.puzzle;
+  els.btnDailyPlay.disabled = true;
+  if(!alreadyReady) els.dailySub.textContent = 'Generating…';
+  try{
+    if(!store.daily.puzzle) prefetchDailyPuzzle();
+    if(dailyPrefetch) await dailyPrefetch;
+    const puzzle = store.daily.puzzle;
+    const seedStr = store.daily.seed;
+    if(!puzzle){ alert('Could not generate today\'s puzzle — please try again.'); return; }
+    try{ if(document.fonts && document.fonts.status!=='loaded') await document.fonts.ready; }catch(e){}
+    finishStartPuzzle(puzzle, 'daily', seedStr);
+    game.isDaily = true;
+  } finally {
+    els.btnDailyPlay.disabled = false; els.dailySub.textContent = prevSub;
+    puzzleGenerating = false;
+  }
 }
 
 function checkpointList(){
@@ -1607,6 +1873,7 @@ function checkpointList(){
 }
 
 function finishStartPuzzle(puzzle, diffKey, seedStr){
+  const hintsMax = diffByKey(diffKey).hints;
   game = {
     diffKey, seedStr, puzzle,
     rows: puzzle.rows, cols: puzzle.cols,
@@ -1614,7 +1881,9 @@ function finishStartPuzzle(puzzle, diffKey, seedStr){
     totalNumbers: puzzle.totalNumbers,
     solution: puzzle.path,
     userPath: [],
-    moves: 0, hintsUsed: 0, hintsMax: 3,
+    moves: 0, hintsUsed: 0, hintsMax,
+    walls: puzzle.walls||[],
+    wallSet: new Set(puzzle.walls||[]),
     startedAt: Date.now(), elapsedBefore: 0,
     finished: false, paused: false,
     dragging: false,
@@ -1623,9 +1892,11 @@ function finishStartPuzzle(puzzle, diffKey, seedStr){
   els.lvlTitle.textContent = diffByKey(diffKey).label;
   els.lvlSub.textContent = '';
   els.hintBadge.textContent = game.hintsMax;
+  els.btnHint.style.display = hintsMax<=0 ? 'none' : '';
   SceneMgr.onCellTap = handleCellTap;
   SceneMgr.buildBoard(game.rows, game.cols, game.totalNumbers);
   SceneMgr.setCheckpoints(checkpointList());
+  SceneMgr.setWalls(game.walls);
   SceneMgr.updateBoardState(game.userPath, game.checkpoints, game.totalNumbers);
   showScreen('game');
   SceneMgr.resize();
@@ -1638,6 +1909,14 @@ function finishStartPuzzle(puzzle, diffKey, seedStr){
    14. PATH EDITING
    ========================================================= */
 function isAdjacent(a,b){ return Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1])===1; }
+
+// same canonical form as the worker's edgeKey — must match exactly since a
+// puzzle's wall list is generated there and only ever consumed over here
+function edgeKey(r1,c1,r2,c2){
+  if(r1>r2 || (r1===r2 && c1>c2)){ const tr=r1,tc=c1; r1=r2; c1=c2; r2=tr; c2=tc; }
+  return r1+','+c1+'-'+r2+','+c2;
+}
+function isWalled(a,b){ return !!(game && game.wallSet && game.wallSet.has(edgeKey(a[0],a[1],b[0],b[1]))); }
 
 function nextNeededNumber(){
   let next = 1;
@@ -1687,6 +1966,7 @@ function tryExtendTo(cellPos){
     }
   }
   if(!isAdjacent(last, cellPos)) return rejectMove(cellPos);
+  if(isWalled(last, cellPos)) return rejectMove(cellPos);
   const k = keyOf(cellPos[0],cellPos[1]);
   const cp = game.checkpoints[k];
   const needed = nextNeededNumber();
@@ -1710,10 +1990,10 @@ function flashStuckCheck(){
   const idx=(r,c)=> r*game.cols+c;
   function neighborsOf(r,c){
     const res=[];
-    if(r>0) res.push(r-1,c);
-    if(r<game.rows-1) res.push(r+1,c);
-    if(c>0) res.push(r,c-1);
-    if(c<game.cols-1) res.push(r,c+1);
+    if(r>0 && !isWalled([r,c],[r-1,c])) res.push(r-1,c);
+    if(r<game.rows-1 && !isWalled([r,c],[r+1,c])) res.push(r+1,c);
+    if(c>0 && !isWalled([r,c],[r,c-1])) res.push(r,c-1);
+    if(c<game.cols-1 && !isWalled([r,c],[r,c+1])) res.push(r,c+1);
     return res;
   }
   const nb = neighborsOf(last[0],last[1]);
@@ -1729,7 +2009,10 @@ function flashStuckCheck(){
     }
     ok = count===remaining;
   }
-  if(!ok) showToast("This path can't reach every cell from here — try Undo");
+  // only surface this on Easy/Medium — on Hard/Extreme (walls in play) figuring
+  // out reachability yourself is part of the challenge, and the check fires
+  // more often there anyway since walls fragment the board more
+  if(!ok && (game.diffKey==='easy' || game.diffKey==='medium')) showToast("This path can't reach every cell from here — try Undo");
 }
 
 function checkWin(){
@@ -1927,7 +2210,21 @@ function finishLevel(){
   if(!store.stats.bestTimeByDiff[game.diffKey] || elapsed < store.stats.bestTimeByDiff[game.diffKey]){
     store.stats.bestTimeByDiff[game.diffKey] = elapsed;
   }
+
+  if(game.isDaily){
+    ensureDailyPuzzle(); // guards against finishing right as the date rolled over
+    store.daily.completed = true;
+    store.daily.completedTime = elapsed;
+    const y = new Date(Date.now()-86400000).toISOString().slice(0,10);
+    store.daily.streak = (store.daily.lastCompletedDay===y) ? (store.daily.streak||0)+1 : 1;
+    store.daily.lastCompletedDay = store.daily.date;
+    const streakBit = store.daily.streak>1 ? ' · 🔥 '+store.daily.streak+'-day streak' : '';
+    els.winSub.textContent = 'Solved in '+formatTime(elapsed)+streakBit+'. Come back tomorrow.';
+  }
   persist();
+  // only regular play offers an immediate "Next puzzle" — there's just the
+  // one daily board, and it's already locked for today
+  els.btnWinNext.style.display = game.diffKey==='daily' ? 'none' : '';
 
   Audio_.win();
   const revealWin = ()=>{
@@ -1972,11 +2269,13 @@ function runConfetti(){
   tick();
 }
 
-els.btnWinMenu.addEventListener('click', ()=>{ showScreen('start'); });
+els.btnWinMenu.addEventListener('click', ()=>{ refreshDailyCard(); prefetchDailyPuzzle(); showScreen('start'); });
 els.btnWinNext.addEventListener('click', ()=>{ startPuzzle(game.diffKey); });
 
 function leaveToMenu(){
   if(timerHandle) clearInterval(timerHandle);
+  refreshDailyCard();
+  prefetchDailyPuzzle();
   showScreen('start');
 }
 els.btnBack.addEventListener('click', ()=>{
