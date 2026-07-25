@@ -22,21 +22,28 @@
   --bg:#0e1016; --bg-elevated:#161923; --bg-elevated-2:#1c2130; --line:#2a3142;
   --ink:#e9ecf4; --ink-dim:#8891a7; --ink-faint:#565f77;
   --accent:#4ee6a8; --accent-soft:rgba(78,230,168,.18); --danger:#e85d5d;
+  --chip-accent:#4ee6a8;
 }
 [data-theme="wood"]{
   --bg:#241812; --bg-elevated:#2f2019; --bg-elevated-2:#3a2620; --line:#4a3428;
   --ink:#f2e3d3; --ink-dim:#c2a389; --ink-faint:#8a6c58;
   --accent:#e0913f; --accent-soft:rgba(224,145,63,.2); --danger:#d9694a;
+  /* the real board's checkpoint-highlight color (THEME_3D.wood.accent) is a
+     cream tone — it diverges from this theme's UI --accent (orange), which
+     everywhere else happens to match, so it needs its own token here */
+  --chip-accent:#e4cd9e;
 }
 [data-theme="marble"]{
   --bg:#e9e6df; --bg-elevated:#f5f3ee; --bg-elevated-2:#ffffff; --line:#d3cec2;
   --ink:#2a2823; --ink-dim:#6f6b60; --ink-faint:#a39d8e;
   --accent:#0f9d8c; --accent-soft:rgba(15,157,140,.16); --danger:#a8493f;
+  --chip-accent:#0f9d8c;
 }
 [data-theme="ocean"]{
   --bg:#061c26; --bg-elevated:#0b2733; --bg-elevated-2:#0f3140; --line:#194456;
   --ink:#e3f6fb; --ink-dim:#8fc3d4; --ink-faint:#4d7f92;
   --accent:#28c7d6; --accent-soft:rgba(40,199,214,.2); --danger:#ff6f6f;
+  --chip-accent:#28c7d6;
 }
 
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
@@ -83,10 +90,14 @@ button{font-family:inherit;}
 .diff-btn strong{display:block; font-family:var(--font-display); font-size:.98rem;}
 .diff-btn small{color:var(--ink-dim); font-size:.72rem;}
 
-.theme-row{display:flex; gap:7px; margin-top:12px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin;}
-.theme-chip{flex:none; width:38px; height:38px; border-radius:11px; border:2px solid transparent; cursor:pointer; position:relative; overflow:hidden;}
-.theme-chip[aria-pressed="true"]{border-color:var(--accent);}
+.theme-row{display:flex; gap:22px; margin-top:12px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin;}
+.theme-item{flex:none; display:flex; flex-direction:column; align-items:center; gap:7px; background:none; border:none; padding:0; cursor:pointer; font-family:inherit;}
+.theme-chip{width:38px; height:38px; border-radius:11px; border:2px solid transparent; position:relative; overflow:hidden;}
+.theme-item[aria-pressed="true"] .theme-chip{border-color:var(--accent);}
 .theme-chip i{position:absolute; inset:0;}
+.theme-label{font-family:var(--font-display); font-size:.68rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-dim);}
+.theme-item[aria-pressed="true"] .theme-label{color:var(--accent);}
+.theme-heading{font-family:var(--font-display); font-weight:700; letter-spacing:.03em; text-transform:uppercase; font-size:.8rem; color:var(--ink-dim);}
 
 .row-actions{display:flex; gap:10px; margin-top:16px;}
 .btn{appearance:none; border:none; cursor:pointer; border-radius:var(--radius-md); padding:12px 16px; font-weight:600; font-size:.9rem; display:inline-flex; align-items:center; justify-content:center; gap:8px; transition:transform .15s, filter .15s, background .2s;}
@@ -185,6 +196,31 @@ button{font-family:inherit;}
 .stat-table td{padding:7px 0; border-bottom:1px solid var(--line);}
 .stat-table td:last-child{text-align:right; font-family:var(--font-display); font-variant-numeric:tabular-nums;}
 
+/* ---- How to Play ---- */
+.howto-demo-wrap{background:var(--bg); border:1px solid var(--line); border-radius:14px; padding:16px; display:flex; justify-content:center;}
+.howto-board{--cell:52px; position:relative; width:calc(var(--cell)*4); height:calc(var(--cell)*3);}
+.howto-cell{position:absolute; width:calc(var(--cell) - 6px); height:calc(var(--cell) - 6px); background:var(--bg-elevated-2); border:1px solid var(--line); border-radius:10px;}
+.howto-wall{position:absolute; background:#8f97ab; border-radius:4px;}
+.howto-dot{position:absolute; width:26px; height:26px; border-radius:50%; background:#15181f; border:2px solid var(--accent-soft); display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-weight:700; font-size:.78rem; color:#e9ecf4; transform:translate(-50%,-50%);}
+.howto-dot.start{border-color:var(--chip-accent); box-shadow:0 0 0 4px var(--accent-soft);}
+.howto-rope{position:absolute; top:0; left:0; overflow:visible;}
+.howto-rope path{fill:none; stroke:var(--accent); stroke-width:9; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:600; stroke-dashoffset:600; animation:howto-draw 3.4s cubic-bezier(.65,0,.35,1) infinite; filter:drop-shadow(0 0 6px rgba(78,230,168,.5));}
+.howto-head{position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; box-shadow:0 0 10px 3px rgba(78,230,168,.7); offset-path:path('M 26 26 L 130 26 L 130 78 L 234 78'); animation:howto-head 3.4s cubic-bezier(.65,0,.35,1) infinite;}
+@keyframes howto-draw{0%{stroke-dashoffset:600;} 65%{stroke-dashoffset:0;} 100%{stroke-dashoffset:0;}}
+@keyframes howto-head{0%{offset-distance:0%; opacity:0;} 4%{opacity:1;} 65%{offset-distance:100%; opacity:1;} 78%{opacity:0;} 100%{opacity:0; offset-distance:100%;}}
+.howto-legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin:12px 0 4px; font-size:.74rem; color:var(--ink-dim);}
+.howto-legend-item{display:flex; align-items:center; gap:6px;}
+.howto-swatch{width:12px; height:12px; border-radius:3px; flex:none;}
+.howto-steps{display:flex; flex-direction:column; gap:12px; margin-top:14px;}
+.howto-step{display:flex; gap:12px; align-items:flex-start;}
+.howto-icon{flex:none; width:32px; height:32px; border-radius:10px; background:var(--bg-elevated-2); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; color:var(--accent);}
+.howto-icon svg{width:17px; height:17px;}
+.howto-icon.warn{color:var(--danger);}
+.howto-copy strong{display:block; font-size:.86rem; margin-bottom:1px;}
+.howto-copy span{display:block; font-size:.78rem; color:var(--ink-dim); line-height:1.4;}
+@media (prefers-reduced-motion:reduce){ .howto-rope path, .howto-head{ animation:none; stroke-dashoffset:0; offset-distance:100%; opacity:1; } }
+#howto-backdrop.no-motion .howto-rope path, #howto-backdrop.no-motion .howto-head{ animation:none; stroke-dashoffset:0; offset-distance:100%; opacity:1; }
+
 @media (prefers-reduced-motion:reduce){ .screen,.switch i,.diff-btn,.btn{transition:none !important;} }
 @media (max-height:640px){ .brand{margin-top:12px;} .card{margin-top:12px; padding:14px;} }
 </style>
@@ -212,11 +248,10 @@ button{font-family:inherit;}
       <div class="row-actions">
         <button class="btn btn-primary" id="btn-play">Play</button>
       </div>
-      <h2 style="margin-top:16px;">Theme</h2>
-      <div class="theme-row" id="theme-row" role="group" aria-label="Theme"></div>
       <div class="menu-btn-list">
         <button class="btn btn-ghost" id="btn-open-settings">⚙ Settings</button>
         <button class="btn btn-ghost" id="btn-open-stats"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/></svg> Statistics</button>
+        <button class="btn btn-ghost" id="btn-open-howto-menu"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.7-2.3 3.3"/><path d="M12 17.2h.01"/></svg> How to Play</button>
       </div>
     </div>
   </section>
@@ -232,6 +267,7 @@ button{font-family:inherit;}
       <div class="pill-group">
         <div class="pill"><b id="stat-timer">0:00</b><span>Time</span></div>
       </div>
+      <button class="btn btn-icon" id="btn-open-howto-game" aria-label="How to play"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.7-2.3 3.3"/><path d="M12 17.2h.01"/></svg></button>
       <button class="btn btn-icon" id="btn-pause" aria-label="Pause">⏸</button>
     </div>
 
@@ -281,8 +317,13 @@ button{font-family:inherit;}
 <div class="modal-backdrop" id="settings-backdrop">
   <div class="modal">
     <h3>Settings</h3>
+    <div class="setting-row" style="flex-direction:column; align-items:stretch; gap:8px;">
+      <span class="theme-heading">Theme</span>
+      <div class="theme-row" id="theme-row" role="group" aria-label="Theme"></div>
+    </div>
     <div class="setting-row"><span>Sound effects</span><div class="switch on" id="switch-sound" role="switch" aria-checked="true" tabindex="0"><i></i></div></div>
     <div class="setting-row"><span>Reduce motion</span><div class="switch" id="switch-motion" role="switch" aria-checked="false" tabindex="0"><i></i></div></div>
+    <div class="setting-row"><span>How to Play</span><button class="btn btn-ghost" id="btn-open-howto" style="padding:8px 14px;">Open</button></div>
     <div class="setting-row"><span>Clear saved data</span><button class="btn btn-ghost" id="btn-clear-data" style="padding:8px 14px;">Clear</button></div>
     <div class="credit-pill">Made By Mind</div>
     <div class="row-actions" style="margin-top:6px;"><button class="btn btn-primary" id="btn-close-settings">Done</button></div>
@@ -294,16 +335,77 @@ button{font-family:inherit;}
   <div class="modal">
     <h3>Statistics</h3>
     <table class="stat-table">
-      <tr><td>Games played</td><td id="s-games">0</td></tr>
-      <tr><td>Solved</td><td id="s-wins">0</td></tr>
-      <tr><td>Current streak</td><td id="s-streak">0</td></tr>
       <tr><td>Best time — Easy</td><td id="s-best-easy">—</td></tr>
       <tr><td>Best time — Medium</td><td id="s-best-medium">—</td></tr>
       <tr><td>Best time — Hard</td><td id="s-best-hard">—</td></tr>
       <tr><td>Best time — Extreme</td><td id="s-best-extreme">—</td></tr>
       <tr><td>Total playtime</td><td id="s-playtime">0m</td></tr>
+      <tr><td>Daily puzzles solved</td><td id="s-daily-solved">0</td></tr>
+      <tr><td>Best daily time</td><td id="s-daily-best">—</td></tr>
     </table>
     <div class="row-actions" style="margin-top:14px;"><button class="btn btn-primary" id="btn-close-stats">Done</button></div>
+  </div>
+</div>
+
+<!-- ============ HOW TO PLAY ============ -->
+<div class="modal-backdrop" id="howto-backdrop">
+  <div class="modal">
+    <h3>How to Play</h3>
+    <p style="color:var(--ink-dim); font-size:.86rem; margin:0 0 14px; line-height:1.5;">Watch the thread connect 1 → 2 → 3, avoiding the wall.</p>
+
+    <div class="howto-demo-wrap">
+      <div class="howto-board">
+        <div class="howto-cell" style="left:0;    top:0;"></div>
+        <div class="howto-cell" style="left:52px; top:0;"></div>
+        <div class="howto-cell" style="left:104px;top:0;"></div>
+        <div class="howto-cell" style="left:156px;top:0;"></div>
+        <div class="howto-cell" style="left:0;    top:52px;"></div>
+        <div class="howto-cell" style="left:52px; top:52px;"></div>
+        <div class="howto-cell" style="left:104px;top:52px;"></div>
+        <div class="howto-cell" style="left:156px;top:52px;"></div>
+        <div class="howto-cell" style="left:0;    top:104px;"></div>
+        <div class="howto-cell" style="left:52px; top:104px;"></div>
+        <div class="howto-cell" style="left:104px;top:104px;"></div>
+        <div class="howto-cell" style="left:156px;top:104px;"></div>
+
+        <div class="howto-wall" style="left:151px; top:8px; width:6px; height:36px;"></div>
+
+        <svg class="howto-rope" width="260" height="160">
+          <path d="M 26 26 L 130 26 L 130 78 L 234 78"/>
+        </svg>
+        <div class="howto-head"></div>
+
+        <div class="howto-dot start" style="left:26px; top:26px;">1</div>
+        <div class="howto-dot" style="left:234px; top:78px;">2</div>
+        <div class="howto-dot" style="left:130px; top:130px;">3</div>
+      </div>
+    </div>
+    <div class="howto-legend">
+      <div class="howto-legend-item"><span class="howto-swatch" style="background:var(--accent);"></span>Your thread</div>
+      <div class="howto-legend-item"><span class="howto-swatch" style="background:#8f97ab;"></span>Wall — can't cross</div>
+      <div class="howto-legend-item"><span class="howto-swatch" style="background:#15181f; border:1px solid var(--line);"></span>Checkpoint</div>
+    </div>
+
+    <div class="howto-steps">
+      <div class="howto-step">
+        <div class="howto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 12h6M12 9v6"/></svg></div>
+        <div class="howto-copy"><strong>Start at 1</strong><span>Tap or drag from the numbered checkpoint marked 1.</span></div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="howto-copy"><strong>Fill every cell</strong><span>Drag through each square exactly once — no skipping, no repeats.</span></div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg></div>
+        <div class="howto-copy"><strong>Hit numbers in order</strong><span>2, 3, 4… must be reached in sequence along your path.</span></div>
+      </div>
+      <div class="howto-step">
+        <div class="howto-icon warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="9" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+        <div class="howto-copy"><strong>Walls block the path</strong><span>On Hard, Extreme and the Daily Puzzle, gray bars sit between some cells — you can't cross them.</span></div>
+      </div>
+    </div>
+
+    <div class="row-actions" style="margin-top:16px;"><button class="btn btn-primary" id="btn-close-howto">Got it</button></div>
   </div>
 </div>
 
@@ -363,7 +465,7 @@ function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store));
 let store = loadStore();
 store.settings = Object.assign({theme:'dark', sound:true, motion:true}, store.settings||{});
 if(!['dark','marble','wood','ocean'].includes(store.settings.theme)) store.settings.theme = 'dark';
-store.stats = Object.assign({gamesStarted:0, wins:0, streak:0, lastWinDay:null, bestTimeByDiff:{}, playtimeSec:0}, store.stats||{});
+store.stats = Object.assign({bestTimeByDiff:{}, playtimeSec:0, dailySolved:0, bestDailyTime:null}, store.stats||{});
 store.history = Object.assign({easy:[], medium:[], hard:[], extreme:[]}, store.history||{});
 store.daily = Object.assign({date:null, seed:null, puzzle:null, completed:false, completedTime:null, streak:0, lastCompletedDay:null}, store.daily||{});
 // a stable per-install id — mixed into the daily puzzle's seed so everyone
@@ -371,6 +473,7 @@ store.daily = Object.assign({date:null, seed:null, puzzle:null, completed:false,
 if(!store.playerId){
   store.playerId = 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 }
+if(store.seenHowTo===undefined) store.seenHowTo = false;
 persist();
 
 /* =========================================================
@@ -392,14 +495,14 @@ function diffByKey(k){ return DIFFICULTIES.find(d=>d.key===k) || DIFFICULTIES[0]
 
 const THEMES = [
   {key:'dark',    label:'Dark'},
-  {key:'marble',  label:'Marble'},
+  {key:'marble',  label:'Light'},
   {key:'wood',    label:'Wood'},
   {key:'ocean',   label:'Ocean'},
 ];
 const THEME_3D = {
   dark:   {bg:0x0e1016, tileA:0x1a1f2c, tileB:0x1e2432, fog:0x0e1016, ambient:0x8892aa, ambientI:0.55, dir:0xf3f6ff, dirI:1.0,  rough:0.65, metal:0.15, glow:0.9,  accent:0x4ee6a8, rope:0x146b5f, ropeTail:0x062e28, wall:0x8f97ab},
   marble: {bg:0xe9e6df, tileA:0xffffff, tileB:0xc9c0aa, fog:0xe9e6df, ambient:0xffffff, ambientI:0.9,  dir:0xfff8ef, dirI:1.1,  rough:0.42, metal:0.04, glow:0.4, accent:0x0f9d8c, rope:0x146b5f, ropeTail:0x062e28, wall:0x555555},
-  wood:   {bg:0x241812, tileA:0x4a3323, tileB:0x412c1e, fog:0x241812, ambient:0xffcf9e, ambientI:0.55, dir:0xffddb0, dirI:0.95, rough:0.85, metal:0.02, glow:0.44, accent:0xe4cd9e, rope:0xe4cd9e, ropeTail:0x93713f, wall:0x8a6a3f},
+  wood:   {bg:0x241812, tileA:0x4a3323, tileB:0x412c1e, fog:0x241812, ambient:0xffcf9e, ambientI:0.55, dir:0xffddb0, dirI:0.95, rough:0.85, metal:0.02, glow:0.44, accent:0xe4cd9e, rope:0xe0913f, ropeTail:0x5a3a19, wall:0x8a6a3f},
   ocean:  {bg:0x061c26, tileA:0x0e3140, tileB:0x0a2836, fog:0x061c26, ambient:0x7ee0ec, ambientI:0.55, dir:0xbdf3ff, dirI:0.95, rough:0.3,  metal:0.25, glow:0.62, accent:0x28c7d6, rope:0x28c7d6, ropeTail:0x041519, wall:0xcdf5f0},
 };
 
@@ -1588,6 +1691,11 @@ const els = {
   statsBackdrop: document.getElementById('stats-backdrop'),
   btnOpenStats: document.getElementById('btn-open-stats'),
   btnCloseStats: document.getElementById('btn-close-stats'),
+  howtoBackdrop: document.getElementById('howto-backdrop'),
+  btnOpenHowtoMenu: document.getElementById('btn-open-howto-menu'),
+  btnOpenHowtoGame: document.getElementById('btn-open-howto-game'),
+  btnOpenHowto: document.getElementById('btn-open-howto'),
+  btnCloseHowto: document.getElementById('btn-close-howto'),
   leaveBackdrop: document.getElementById('leave-backdrop'),
   btnLeaveCancel: document.getElementById('btn-leave-cancel'),
   btnLeaveConfirm: document.getElementById('btn-leave-confirm'),
@@ -1642,14 +1750,14 @@ DIFFICULTIES.filter(d=>!d.hidden).forEach(d=>{
 /* ---- theme chips ---- */
 THEMES.forEach(t=>{
   const btn = document.createElement('button');
-  btn.className='theme-chip'; btn.dataset.key=t.key; btn.setAttribute('aria-label', t.label);
+  btn.className='theme-item'; btn.dataset.key=t.key; btn.setAttribute('aria-label', t.label);
   btn.setAttribute('aria-pressed', t.key===store.settings.theme ? 'true':'false');
   const t3 = THEME_3D[t.key];
-  btn.innerHTML = '<i style="background:linear-gradient(135deg, #'+t3.tileA.toString(16).padStart(6,'0')+', #'+t3.bg.toString(16).padStart(6,'0')+')"></i>';
+  btn.innerHTML = '<span class="theme-chip"><i style="background:linear-gradient(135deg, #'+t3.tileA.toString(16).padStart(6,'0')+', #'+t3.bg.toString(16).padStart(6,'0')+')"></i></span><span class="theme-label">'+t.label+'</span>';
   btn.addEventListener('click', ()=>{
     store.settings.theme = t.key;
     document.body.setAttribute('data-theme', t.key);
-    document.querySelectorAll('.theme-chip').forEach(b=> b.setAttribute('aria-pressed', b.dataset.key===t.key ? 'true':'false'));
+    document.querySelectorAll('.theme-item').forEach(b=> b.setAttribute('aria-pressed', b.dataset.key===t.key ? 'true':'false'));
     SceneMgr.applyTheme(t.key);
     if(game) SceneMgr.updateBoardState(game.userPath, game.checkpoints, game.totalNumbers);
     persist();
@@ -1661,15 +1769,14 @@ document.body.setAttribute('data-theme', store.settings.theme);
 
 function refreshStatsModal(){
   const s = store.stats;
-  document.getElementById('s-games').textContent = s.gamesStarted||0;
-  document.getElementById('s-wins').textContent = s.wins;
-  document.getElementById('s-streak').textContent = s.streak;
   DIFFICULTIES.forEach(d=>{
     const el = document.getElementById('s-best-'+d.key);
     if(el) el.textContent = s.bestTimeByDiff[d.key] ? formatTime(s.bestTimeByDiff[d.key]) : '—';
   });
   const mins = Math.round((s.playtimeSec||0)/60);
   document.getElementById('s-playtime').textContent = mins+'m';
+  document.getElementById('s-daily-solved').textContent = s.dailySolved||0;
+  document.getElementById('s-daily-best').textContent = s.bestDailyTime ? formatTime(s.bestDailyTime) : '—';
 }
 
 /* ---- settings ---- */
@@ -1690,10 +1797,42 @@ els.btnOpenSettings.addEventListener('click', ()=> els.settingsBackdrop.classLis
 els.btnCloseSettings.addEventListener('click', ()=> els.settingsBackdrop.classList.remove('show'));
 els.settingsBackdrop.addEventListener('click', e=>{ if(e.target===els.settingsBackdrop) els.settingsBackdrop.classList.remove('show'); });
 els.btnOpenStats.addEventListener('click', ()=>{ refreshStatsModal(); els.statsBackdrop.classList.add('show'); });
+let dailyPrefetch = null;
 refreshDailyCard();
 prefetchDailyPuzzle();
 els.btnCloseStats.addEventListener('click', ()=> els.statsBackdrop.classList.remove('show'));
 els.statsBackdrop.addEventListener('click', e=>{ if(e.target===els.statsBackdrop) els.statsBackdrop.classList.remove('show'); });
+
+let howtoPausedGame = false;
+function openHowTo(){
+  // the demo loop is CSS-animation-driven; this game's own "Reduce motion"
+  // setting is a separate JS toggle from the OS-level media query already
+  // handled in CSS, so mirror it here too
+  els.howtoBackdrop.classList.toggle('no-motion', !store.settings.motion);
+  els.howtoBackdrop.classList.add('show');
+  if(!store.seenHowTo){ store.seenHowTo = true; persist(); }
+}
+function closeHowTo(){
+  els.howtoBackdrop.classList.remove('show');
+  // only resume if opening it was what paused the game in the first place —
+  // never touch a pause the player set themselves via the actual Pause button
+  if(howtoPausedGame){ howtoPausedGame = false; resumeGame(); }
+}
+els.btnOpenHowtoMenu.addEventListener('click', openHowTo);
+els.btnOpenHowto.addEventListener('click', ()=>{ els.settingsBackdrop.classList.remove('show'); openHowTo(); });
+els.btnOpenHowtoGame.addEventListener('click', ()=>{
+  if(game && !game.finished && !game.paused){
+    game.paused = true;
+    game.elapsedBefore += (Date.now()-game.startedAt)/1000;
+    howtoPausedGame = true;
+  }
+  openHowTo();
+});
+els.btnCloseHowto.addEventListener('click', closeHowTo);
+els.howtoBackdrop.addEventListener('click', e=>{ if(e.target===els.howtoBackdrop) closeHowTo(); });
+// first-ever launch: surface it automatically once, after the intro
+// transition has had a moment to settle rather than slamming it up instantly
+if(!store.seenHowTo){ setTimeout(openHowTo, 600); }
 els.btnClearData.addEventListener('click', ()=>{
   if(confirm('Clear all saved progress and stats?')){
     localStorage.removeItem(STORE_KEY);
@@ -1809,7 +1948,6 @@ function ensureDailyPuzzle(){
 // the time the player actually clicks Play — that's what makes the
 // "Generating…" state in startDailyPuzzle basically never show up in
 // practice, the same trick already used for regular difficulties.
-let dailyPrefetch = null;
 function prefetchDailyPuzzle(){
   ensureDailyPuzzle();
   if(store.daily.puzzle || dailyPrefetch) return;
@@ -1830,7 +1968,7 @@ function refreshDailyCard(){
     const streakBit = store.daily.streak>1 ? ' · 🔥 '+store.daily.streak+'-day streak' : '';
     els.dailySub.textContent = 'Solved in '+formatTime(store.daily.completedTime||0)+streakBit+' · come back tomorrow';
   } else {
-    els.dailySub.textContent = '9×9 · no hints, 9-13 walls — one shot, resets tomorrow';
+    els.dailySub.textContent = 'One shot, resets tomorrow';
   }
 }
 
@@ -1887,7 +2025,6 @@ function finishStartPuzzle(puzzle, diffKey, seedStr){
     startedAt: Date.now(), elapsedBefore: 0,
     finished: false, paused: false,
     dragging: false,
-    countedAsPlayed: false,
   };
   els.lvlTitle.textContent = diffByKey(diffKey).label;
   els.lvlSub.textContent = '';
@@ -2045,13 +2182,6 @@ function showToast(msg){
 }
 
 function onBoardChanged(){
-  // only counts as "played" once the player actually does something — opening
-  // a puzzle and immediately backing out shouldn't inflate the games-played stat
-  if(game && !game.countedAsPlayed && game.moves>0){
-    game.countedAsPlayed = true;
-    store.stats.gamesStarted = (store.stats.gamesStarted||0)+1;
-    persist();
-  }
   SceneMgr.updateBoardState(game.userPath, game.checkpoints, game.totalNumbers);
   updateHud();
   if(checkWin()) finishLevel();
@@ -2198,14 +2328,7 @@ function finishLevel(){
   els.winSub.textContent = flavor+' Completed in '+formatTime(elapsed)+'.';
   announce('Puzzle solved in '+formatTime(elapsed)+' with '+game.moves+' moves');
 
-  store.stats.wins = (store.stats.wins||0)+1;
   store.stats.playtimeSec = (store.stats.playtimeSec||0) + elapsed;
-  const today = new Date().toISOString().slice(0,10);
-  if(store.stats.lastWinDay !== today){
-    const y = new Date(Date.now()-86400000).toISOString().slice(0,10);
-    store.stats.streak = (store.stats.lastWinDay===y) ? (store.stats.streak||0)+1 : 1;
-    store.stats.lastWinDay = today;
-  }
   store.stats.bestTimeByDiff = store.stats.bestTimeByDiff || {};
   if(!store.stats.bestTimeByDiff[game.diffKey] || elapsed < store.stats.bestTimeByDiff[game.diffKey]){
     store.stats.bestTimeByDiff[game.diffKey] = elapsed;
@@ -2218,6 +2341,10 @@ function finishLevel(){
     const y = new Date(Date.now()-86400000).toISOString().slice(0,10);
     store.daily.streak = (store.daily.lastCompletedDay===y) ? (store.daily.streak||0)+1 : 1;
     store.daily.lastCompletedDay = store.daily.date;
+    store.stats.dailySolved = (store.stats.dailySolved||0)+1;
+    if(!store.stats.bestDailyTime || elapsed < store.stats.bestDailyTime){
+      store.stats.bestDailyTime = elapsed;
+    }
     const streakBit = store.daily.streak>1 ? ' · 🔥 '+store.daily.streak+'-day streak' : '';
     els.winSub.textContent = 'Solved in '+formatTime(elapsed)+streakBit+'. Come back tomorrow.';
   }
