@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>ZipLine — one path, every cell</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- ============ START ============ -->
+      <section id="screen-start" class="screen active" aria-label="Main menu">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <circle cx="6" cy="7" r="3" fill="var(--accent)" />
+              <circle cx="22" cy="21" r="3" fill="#3ddc9a" />
+              <path
+                d="M6 10 C 6 18, 22 10, 22 18"
+                stroke="var(--accent)"
+                stroke-width="2.6"
+                stroke-linecap="round"
+                fill="none"
+              />
+            </svg>
+          </div>
+          <h1>Zip<span>Line</span></h1>
+          <p>Trace the one true path.</p>
+        </div>
+
+        <div class="card">
+          <h2>Difficulty</h2>
+          <div
+            class="diff-grid"
+            id="difficulty-grid"
+            role="group"
+            aria-label="Difficulty"
+          ></div>
+          <div class="row-actions">
+            <button class="btn btn-primary" id="btn-play">Play</button>
+          </div>
+          <div class="menu-btn-list">
+            <button class="btn btn-ghost" id="btn-open-settings">
+              ⚙ Settings
+            </button>
+            <button class="btn btn-ghost" id="btn-open-stats">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M4 20V10" />
+                <path d="M12 20V4" />
+                <path d="M20 20v-7" />
+              </svg>
+              Statistics
+            </button>
+            <button class="btn btn-ghost" id="btn-open-howto-menu">
+              <svg
+                width="17"
+                height="17"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.3"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.7-2.3 3.3" />
+                <path d="M12 17.2h.01" />
+              </svg>
+              How to Play
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ GAME ============ -->
+      <section id="screen-game" class="screen" aria-label="Puzzle">
+        <div class="game-header">
+          <button class="btn btn-icon" id="btn-back" aria-label="Back to menu">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M15 5 7 12l8 7" />
+            </svg>
+          </button>
+          <div class="lvl-info">
+            <b id="lvl-title">Easy</b>
+            <span id="lvl-sub">—</span>
+          </div>
+          <div class="pill-group">
+            <div class="pill"><b id="stat-timer">0:00</b><span>Time</span></div>
+          </div>
+          <button
+            class="btn btn-icon"
+            id="btn-open-howto-game"
+            aria-label="How to play"
+          >
+            <svg
+              width="19"
+              height="19"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="9" />
+              <path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.7-2.3 3.3" />
+              <path d="M12 17.2h.01" />
+            </svg>
+          </button>
+          <button class="btn btn-icon" id="btn-pause" aria-label="Pause">
+            ⏸
+          </button>
+        </div>
+
+        <div class="board-wrap">
+          <canvas
+            id="three-canvas"
+            tabindex="0"
+            role="application"
+            aria-label="Puzzle board. Arrow keys move the path, Backspace to undo."
+          ></canvas>
+          <div class="toast" id="toast">
+            This path can't reach every cell from here — try Undo
+          </div>
+        </div>
+
+        <div class="game-footer">
+          <button class="btn btn-ghost" id="btn-undo" aria-label="Undo">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="9 14 4 9 9 4" />
+              <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+            </svg>
+            <small>Undo</small>
+          </button>
+          <button class="btn btn-ghost" id="btn-hint" aria-label="Hint">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M9 18h6" />
+              <path d="M10 22h4" />
+              <path
+                d="M12 2a7 7 0 0 0-4 12.7c.5.4.8 1 .8 1.6v.7h6.4v-.7c0-.6.3-1.2.8-1.6A7 7 0 0 0 12 2z"
+              />
+            </svg>
+            <small>Hint</small>
+            <span class="hint-badge" id="hint-badge">3</span>
+          </button>
+          <button class="btn btn-ghost" id="btn-restart" aria-label="Restart">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path
+                d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10M1 14l5.36 5.36A9 9 0 0 0 20.49 15"
+              />
+            </svg>
+            <small>Restart</small>
+          </button>
+          <button class="btn btn-ghost" id="btn-mute" aria-label="Sound">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              id="mute-icon-on"
+            >
+              <path d="M11 5 6 9H2v6h4l5 4V5z" />
+              <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+              <path d="M18.5 6a9 9 0 0 1 0 12" />
+            </svg>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              id="mute-icon-off"
+              style="display: none"
+            >
+              <path d="M11 5 6 9H2v6h4l5 4V5z" />
+              <path d="M23 9l-6 6" />
+              <path d="M17 9l6 6" />
+            </svg>
+            <small>Sound</small>
+          </button>
+        </div>
+      </section>
+
+      <!-- ============ WIN ============ -->
+      <section id="screen-win" class="screen" aria-label="Puzzle solved">
+        <canvas id="confetti-canvas"></canvas>
+        <div class="win-card">
+          <h2>Solved</h2>
+          <p id="win-sub">0:00 time</p>
+          <div class="row-actions">
+            <button class="btn btn-ghost" id="btn-win-menu">Menu</button>
+            <button class="btn btn-primary" id="btn-win-next">
+              Next puzzle
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============ SETTINGS ============ -->
+    <div class="modal-backdrop" id="settings-backdrop">
+      <div class="modal">
+        <h3>Settings</h3>
+        <div
+          class="setting-row"
+          style="flex-direction: column; align-items: stretch; gap: 8px"
+        >
+          <span class="theme-heading">Theme</span>
+          <div
+            class="theme-row"
+            id="theme-row"
+            role="group"
+            aria-label="Theme"
+          ></div>
+        </div>
+        <div class="setting-row">
+          <span>Sound effects</span>
+          <div
+            class="switch on"
+            id="switch-sound"
+            role="switch"
+            aria-checked="true"
+            tabindex="0"
+          >
+            <i></i>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span>Reduce motion</span>
+          <div
+            class="switch"
+            id="switch-motion"
+            role="switch"
+            aria-checked="false"
+            tabindex="0"
+          >
+            <i></i>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span>Clear saved data</span
+          ><button
+            class="btn btn-ghost"
+            id="btn-clear-data"
+            style="padding: 8px 14px"
+          >
+            Clear
+          </button>
+        </div>
+        <div class="credit-pill">Made By Mind</div>
+        <div class="row-actions" style="margin-top: 6px">
+          <button class="btn btn-primary" id="btn-close-settings">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ CLEAR DATA CONFIRM ============ -->
+    <div class="modal-backdrop" id="clear-data-backdrop">
+      <div class="modal">
+        <h3 id="clear-data-title">Clear all saved data?</h3>
+        <p id="clear-data-body" style="color:var(--ink-dim); font-size:.86rem; margin:0 0 16px; line-height:1.5;">This wipes your stats, best times, and daily streak. It can't be undone.</p>
+        <div class="row-actions" id="clear-data-actions">
+          <button class="btn btn-ghost" id="btn-clear-data-cancel">Cancel</button>
+          <button class="btn btn-danger" id="btn-clear-data-confirm">Clear</button>
+        </div>
+        <div class="row-actions" id="clear-data-empty-actions" style="display:none;">
+          <button class="btn btn-primary" id="btn-clear-data-ok">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ STATS ============ -->
+    <div class="modal-backdrop" id="stats-backdrop">
+      <div class="modal">
+        <h3>Statistics</h3>
+        <table class="stat-table">
+          <tr>
+            <td>Best time — Easy</td>
+            <td id="s-best-easy">—</td>
+          </tr>
+          <tr>
+            <td>Best time — Medium</td>
+            <td id="s-best-medium">—</td>
+          </tr>
+          <tr>
+            <td>Best time — Hard</td>
+            <td id="s-best-hard">—</td>
+          </tr>
+          <tr>
+            <td>Best time — Extreme</td>
+            <td id="s-best-extreme">—</td>
+          </tr>
+          <tr>
+            <td>Total playtime</td>
+            <td id="s-playtime">0m</td>
+          </tr>
+          <tr>
+            <td>Daily puzzles solved</td>
+            <td id="s-daily-solved">0</td>
+          </tr>
+          <tr>
+            <td>Best daily time</td>
+            <td id="s-daily-best">—</td>
+          </tr>
+        </table>
+        <div class="row-actions" style="margin-top: 14px">
+          <button class="btn btn-primary" id="btn-close-stats">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ HOW TO PLAY ============ -->
+    <div class="modal-backdrop" id="howto-backdrop">
+      <div class="modal">
+        <h3>How to Play</h3>
+        <p
+          style="
+            color: var(--ink-dim);
+            font-size: 0.86rem;
+            margin: 0 0 14px;
+            line-height: 1.5;
+          "
+        >
+          Watch the thread connect 1 → 2 → 3, avoiding the wall.
+        </p>
+
+        <div class="howto-demo-wrap">
+          <div class="howto-board">
+            <div class="howto-cell" style="left: 0; top: 0"></div>
+            <div class="howto-cell" style="left: 52px; top: 0"></div>
+            <div class="howto-cell" style="left: 104px; top: 0"></div>
+            <div class="howto-cell" style="left: 156px; top: 0"></div>
+            <div class="howto-cell" style="left: 0; top: 52px"></div>
+            <div class="howto-cell" style="left: 52px; top: 52px"></div>
+            <div class="howto-cell" style="left: 104px; top: 52px"></div>
+            <div class="howto-cell" style="left: 156px; top: 52px"></div>
+            <div class="howto-cell" style="left: 0; top: 104px"></div>
+            <div class="howto-cell" style="left: 52px; top: 104px"></div>
+            <div class="howto-cell" style="left: 104px; top: 104px"></div>
+            <div class="howto-cell" style="left: 156px; top: 104px"></div>
+
+            <div
+              class="howto-wall"
+              style="left: 151px; top: 8px; width: 6px; height: 36px"
+            ></div>
+
+            <svg class="howto-rope" width="260" height="160">
+              <path d="M 26 26 L 130 26 L 130 78 L 234 78" />
+            </svg>
+            <div class="howto-head"></div>
+
+            <div class="howto-dot start" style="left: 26px; top: 26px">1</div>
+            <div class="howto-dot" style="left: 234px; top: 78px">2</div>
+            <div class="howto-dot" style="left: 130px; top: 130px">3</div>
+          </div>
+        </div>
+        <div class="howto-legend">
+          <div class="howto-legend-item">
+            <span class="howto-swatch" style="background: var(--accent)"></span
+            >Your thread
+          </div>
+          <div class="howto-legend-item">
+            <span class="howto-swatch" style="background: #8f97ab"></span>Wall —
+            can't cross
+          </div>
+          <div class="howto-legend-item">
+            <span
+              class="howto-swatch"
+              style="background: #15181f; border: 1px solid var(--line)"
+            ></span
+            >Checkpoint
+          </div>
+        </div>
+
+        <div class="howto-steps">
+          <div class="howto-step">
+            <div class="howto-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9 12h6M12 9v6" />
+              </svg>
+            </div>
+            <div class="howto-copy">
+              <strong>Start at 1</strong
+              ><span>Tap or drag from the numbered checkpoint marked 1.</span>
+            </div>
+          </div>
+          <div class="howto-step">
+            <div class="howto-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </div>
+            <div class="howto-copy">
+              <strong>Fill every cell</strong
+              ><span
+                >Drag through each square exactly once — no skipping, no
+                repeats.</span
+              >
+            </div>
+          </div>
+          <div class="howto-step">
+            <div class="howto-icon">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M9 9l6 6M15 9l-6 6" />
+              </svg>
+            </div>
+            <div class="howto-copy">
+              <strong>Hit numbers in order</strong
+              ><span
+                >2, 3, 4… must be reached in sequence along your path.</span
+              >
+            </div>
+          </div>
+          <div class="howto-step">
+            <div class="howto-icon warn">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="4" y="10" width="16" height="9" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+              </svg>
+            </div>
+            <div class="howto-copy">
+              <strong>Walls block the path</strong
+              ><span
+                >On Hard, Extreme and the Daily Puzzle, gray bars sit between
+                some cells — you can't cross them.</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="row-actions" style="margin-top: 16px">
+          <button class="btn btn-primary" id="btn-close-howto">Got it</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ LEAVE CONFIRM ============ -->
+    <div class="modal-backdrop" id="leave-backdrop">
+      <div class="modal">
+        <h3>Leave this puzzle?</h3>
+        <p
+          style="
+            color: var(--ink-dim);
+            font-size: 0.86rem;
+            margin: 0 0 16px;
+            line-height: 1.5;
+          "
+        >
+          Your progress on this thread will be lost — it won't be saved.
+        </p>
+        <div class="row-actions">
+          <button class="btn btn-ghost" id="btn-leave-cancel">Stay</button>
+          <button class="btn btn-danger" id="btn-leave-confirm">Leave</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PAUSE ============ -->
+    <div class="modal-backdrop" id="pause-backdrop">
+      <div class="modal">
+        <div class="brand-mark" aria-hidden="true" style="margin: 0 auto 14px">
+          <svg width="24" height="24" viewBox="0 0 28 28" fill="none">
+            <circle cx="6" cy="7" r="3" fill="var(--accent)" />
+            <circle cx="22" cy="21" r="3" fill="#3ddc9a" />
+            <path
+              d="M6 10 C 6 18, 22 10, 22 18"
+              stroke="var(--accent)"
+              stroke-width="2.6"
+              stroke-linecap="round"
+              fill="none"
+            />
+          </svg>
+        </div>
+        <h3>Paused</h3>
+        <p
+          style="
+            color: var(--ink-dim);
+            font-size: 0.86rem;
+            margin: 0;
+            line-height: 1.5;
+          "
+        >
+          Your thread's holding steady — the board's waiting right where you
+          left it.
+        </p>
+        <div class="row-actions">
+          <button class="btn btn-primary" id="btn-resume">Resume</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="sr-status" class="visually-hidden" aria-live="polite"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

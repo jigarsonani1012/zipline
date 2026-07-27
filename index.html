@@ -163,7 +163,7 @@ button{font-family:inherit;}
   .game-footer .btn{padding:5px 4px;}
   .game-footer .btn small{display:none;}
   .modal{max-height:92vh; padding:14px 16px calc(14px + var(--safe-b));}
-  #leave-backdrop .modal, #pause-backdrop .modal{padding:16px;}
+  #leave-backdrop .modal, #pause-backdrop .modal, #clear-data-backdrop .modal{padding:16px;}
 }
 
 /* ---- WIN ---- */
@@ -179,9 +179,9 @@ button{font-family:inherit;}
 .modal{width:min(480px,100%); max-height:85vh; overflow-y:auto; background:var(--bg-elevated); border-radius:22px 22px 0 0; padding:20px 20px calc(20px + var(--safe-b)); transform:translateY(16px); transition:transform .3s; border-top:1px solid var(--line);}
 .modal-backdrop.show .modal{transform:translateY(0);}
 /* small confirm/status dialogs read better centered than as a bottom sheet */
-#leave-backdrop, #pause-backdrop{align-items:center; padding:20px;}
-#leave-backdrop .modal, #pause-backdrop .modal{width:min(360px,100%); max-width:360px; border-radius:22px; border-top:none; padding:22px; transform:scale(.94); transition:transform .25s;}
-#leave-backdrop.show .modal, #pause-backdrop.show .modal{transform:scale(1);}
+#leave-backdrop, #pause-backdrop, #clear-data-backdrop{align-items:center; padding:20px;}
+#leave-backdrop .modal, #pause-backdrop .modal, #clear-data-backdrop .modal{width:min(360px,100%); max-width:360px; border-radius:22px; border-top:none; padding:22px; transform:scale(.94); transition:transform .25s;}
+#leave-backdrop.show .modal, #pause-backdrop.show .modal, #clear-data-backdrop.show .modal{transform:scale(1);}
 #pause-backdrop .modal{text-align:center;}
 .modal h3{font-family:var(--font-display); margin:0 0 12px;}
 .setting-row{display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--line); gap:10px;}
@@ -329,6 +329,21 @@ button{font-family:inherit;}
   </div>
 </div>
 
+<!-- ============ CLEAR DATA CONFIRM ============ -->
+<div class="modal-backdrop" id="clear-data-backdrop">
+  <div class="modal">
+    <h3 id="clear-data-title">Clear all saved data?</h3>
+    <p id="clear-data-body" style="color:var(--ink-dim); font-size:.86rem; margin:0 0 16px; line-height:1.5;">This wipes your stats, best times, and daily streak. It can't be undone.</p>
+    <div class="row-actions" id="clear-data-actions">
+      <button class="btn btn-ghost" id="btn-clear-data-cancel">Cancel</button>
+      <button class="btn btn-danger" id="btn-clear-data-confirm">Clear</button>
+    </div>
+    <div class="row-actions" id="clear-data-empty-actions" style="display:none;">
+      <button class="btn btn-primary" id="btn-clear-data-ok">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ STATS ============ -->
 <div class="modal-backdrop" id="stats-backdrop">
   <div class="modal">
@@ -460,17 +475,24 @@ function loadStore(){
   };
 }
 function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){} }
-let store = loadStore();
-store.settings = Object.assign({theme:'dark', sound:true, motion:true}, store.settings||{});
-if(!['dark','marble','wood','ocean'].includes(store.settings.theme)) store.settings.theme = 'dark';
-store.stats = Object.assign({bestTimeByDiff:{}, playtimeSec:0, dailySolved:0, bestDailyTime:null}, store.stats||{});
-delete store.history; // recent-puzzle dedupe now lives in memory only, see puzzleHistory below
-store.daily = Object.assign({date:null, seed:null, puzzle:null, completed:false, completedTime:null, streak:0, lastCompletedDay:null}, store.daily||{});
-// a stable per-install id — mixed into the daily puzzle's seed so everyone
-// gets a *different* board for the same calendar day, not one shared puzzle
-if(!store.playerId){
-  store.playerId = 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+// fills in every field the rest of the app assumes always exists (daily,
+// playerId, etc.) — loadStore() alone only returns whatever was actually
+// saved (or, on a bare/cleared profile, just {settings, stats}), so this
+// must run on EVERY assignment to `store`, not just the first one.
+function normalizeStore(s){
+  s.settings = Object.assign({theme:'dark', sound:true, motion:true}, s.settings||{});
+  if(!['dark','marble','wood','ocean'].includes(s.settings.theme)) s.settings.theme = 'dark';
+  s.stats = Object.assign({bestTimeByDiff:{}, playtimeSec:0, dailySolved:0, bestDailyTime:null}, s.stats||{});
+  delete s.history; // recent-puzzle dedupe now lives in memory only, see puzzleHistory below
+  s.daily = Object.assign({date:null, seed:null, puzzle:null, completed:false, completedTime:null, streak:0, lastCompletedDay:null}, s.daily||{});
+  // a stable per-install id — mixed into the daily puzzle's seed so everyone
+  // gets a *different* board for the same calendar day, not one shared puzzle
+  if(!s.playerId){
+    s.playerId = 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
+  }
+  return s;
 }
+let store = normalizeStore(loadStore());
 persist();
 
 /* =========================================================
@@ -1725,6 +1747,14 @@ const els = {
   switchSound: document.getElementById('switch-sound'),
   switchMotion: document.getElementById('switch-motion'),
   btnClearData: document.getElementById('btn-clear-data'),
+  clearDataBackdrop: document.getElementById('clear-data-backdrop'),
+  clearDataTitle: document.getElementById('clear-data-title'),
+  clearDataBody: document.getElementById('clear-data-body'),
+  clearDataActions: document.getElementById('clear-data-actions'),
+  clearDataEmptyActions: document.getElementById('clear-data-empty-actions'),
+  btnClearDataCancel: document.getElementById('btn-clear-data-cancel'),
+  btnClearDataConfirm: document.getElementById('btn-clear-data-confirm'),
+  btnClearDataOk: document.getElementById('btn-clear-data-ok'),
   statsBackdrop: document.getElementById('stats-backdrop'),
   btnOpenStats: document.getElementById('btn-open-stats'),
   btnCloseStats: document.getElementById('btn-close-stats'),
@@ -1871,14 +1901,46 @@ els.btnOpenHowtoGame.addEventListener('click', ()=>{
 });
 els.btnCloseHowto.addEventListener('click', closeHowTo);
 els.howtoBackdrop.addEventListener('click', e=>{ if(e.target===els.howtoBackdrop) closeHowTo(); });
+// what "Clear" actually wipes — stats, best times, daily streak — so this
+// is also exactly what decides whether there's anything worth confirming
+function hasClearableData(){
+  const s = store.stats || {};
+  const d = store.daily || {};
+  return !!(
+    s.gamesStarted || s.wins || s.playtimeSec ||
+    (s.bestTimeByDiff && Object.keys(s.bestTimeByDiff).length) ||
+    s.dailySolved || s.bestDailyTime ||
+    d.completed || d.streak
+  );
+}
+// game-styled confirm instead of the browser's native confirm() popup —
+// same modal-backdrop pattern already used for leave/pause/how-to. And on
+// a fresh profile with nothing recorded yet, the confirmation itself was
+// pointless — there's nothing to lose, so this swaps the same modal to a
+// single-button "nothing to clear" state instead. (Not a toast: #toast
+// lives inside #screen-game and is invisible from the start screen, which
+// is where Settings/Clear Data is actually opened from.)
 els.btnClearData.addEventListener('click', ()=>{
-  if(confirm('Clear all saved progress and stats?')){
-    localStorage.removeItem(STORE_KEY);
-    store = loadStore();
-    document.body.setAttribute('data-theme', store.settings.theme);
-    applySettingsUI();
-    els.settingsBackdrop.classList.remove('show');
-  }
+  const empty = !hasClearableData();
+  els.clearDataTitle.textContent = empty ? 'Nothing to clear' : 'Clear all saved data?';
+  els.clearDataBody.textContent = empty
+    ? "You don't have any saved stats or progress yet."
+    : "This wipes your stats, best times, and daily streak. It can't be undone.";
+  els.clearDataActions.style.display = empty ? 'none' : '';
+  els.clearDataEmptyActions.style.display = empty ? '' : 'none';
+  els.clearDataBackdrop.classList.add('show');
+});
+els.btnClearDataOk.addEventListener('click', ()=> els.clearDataBackdrop.classList.remove('show'));
+els.btnClearDataCancel.addEventListener('click', ()=> els.clearDataBackdrop.classList.remove('show'));
+els.clearDataBackdrop.addEventListener('click', e=>{ if(e.target===els.clearDataBackdrop) els.clearDataBackdrop.classList.remove('show'); });
+els.btnClearDataConfirm.addEventListener('click', ()=>{
+  localStorage.removeItem(STORE_KEY);
+  store = normalizeStore(loadStore());
+  persist();
+  document.body.setAttribute('data-theme', store.settings.theme);
+  applySettingsUI();
+  els.clearDataBackdrop.classList.remove('show');
+  els.settingsBackdrop.classList.remove('show');
 });
 els.btnMute.addEventListener('click', ()=>{ store.settings.sound=!store.settings.sound; persist(); applySettingsUI(); });
 
