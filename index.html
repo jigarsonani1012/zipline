@@ -457,7 +457,6 @@ function loadStore(){
   return {
     settings:{theme:'dark', sound:true, motion:!prefersReducedMotion},
     stats:{gamesStarted:0, wins:0, streak:0, lastWinDay:null, bestTimeByDiff:{}, playtimeSec:0},
-    history:{easy:[], medium:[], hard:[], extreme:[]},
   };
 }
 function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }catch(e){} }
@@ -465,14 +464,13 @@ let store = loadStore();
 store.settings = Object.assign({theme:'dark', sound:true, motion:true}, store.settings||{});
 if(!['dark','marble','wood','ocean'].includes(store.settings.theme)) store.settings.theme = 'dark';
 store.stats = Object.assign({bestTimeByDiff:{}, playtimeSec:0, dailySolved:0, bestDailyTime:null}, store.stats||{});
-store.history = Object.assign({easy:[], medium:[], hard:[], extreme:[]}, store.history||{});
+delete store.history; // recent-puzzle dedupe now lives in memory only, see puzzleHistory below
 store.daily = Object.assign({date:null, seed:null, puzzle:null, completed:false, completedTime:null, streak:0, lastCompletedDay:null}, store.daily||{});
 // a stable per-install id — mixed into the daily puzzle's seed so everyone
 // gets a *different* board for the same calendar day, not one shared puzzle
 if(!store.playerId){
   store.playerId = 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,10);
 }
-if(store.seenHowTo===undefined) store.seenHowTo = false;
 persist();
 
 /* =========================================================
@@ -845,6 +843,7 @@ const SceneMgr = (function(){
   let renderer, scene, camera, ambientLight, dirLight, hemiLight;
   let tileGroup=[], labelPool=[], tokenPool=[], threadMesh=null, threadHead=null, winFlySprite=null, groutMesh=null, pressPulse=null;
   let wallMeshes=[], wallGeo=null, wallMat=null;
+  let sharedTileGeo=null;
   let rows=5, cols=5, cellSize=1.06, camDist=12;
   let camBaseFrom=new THREE.Vector3(), camTargetFrom=new THREE.Vector3();
   let baseHalfW=1, baseHalfH=1, introZoom=1, snapZoom=1;
@@ -854,9 +853,12 @@ const SceneMgr = (function(){
   let cellTokenIndex={}, invalidLabelMat=null;
   let shakeActive=false, shakeStart=0;
   let raycaster, mouseVec = new THREE.Vector2();
+  const groundPlane = new THREE.Plane(new THREE.Vector3(0,1,0), 0);
+  const planeHit = new THREE.Vector3();
   let canvas, onCellTap=null;
   let currentTheme='dark';
   let animFrame=null;
+  let sceneActive=false; // flipped true by setActive() once the game/win screen is actually shown
   let pulseRing = null; // side material of whichever token is currently "next" — pulsed in tick()
 
   // elastic grow-in animation for the thread's newest segment
@@ -876,9 +878,17 @@ const SceneMgr = (function(){
   function init(canvasEl){
     canvas = canvasEl;
     renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 3));
+    // DPR 3 (many phones) means 9x the fragment work of DPR 1 for barely any
+    // visible sharpness gain over DPR 2 on a board this simple — capping here
+    // is the single biggest fill-rate win available on mid/low-end mobile GPUs
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // the board, walls and tiles never move once built — only the rope/chips
+    // above them animate, and neither casts a shadow — so the shadow map only
+    // needs to be recomputed when the board itself changes, not all 60 times
+    // a second. markShadowDirty() below flips this on for one frame.
+    renderer.shadowMap.autoUpdate = false;
     // without tone mapping, bright/light-colored materials just hard-clip to pure
     // white once combined light exceeds 1.0 — that was erasing the checkerboard
     // contrast entirely on light themes (e.g. marble) while dark themes had headroom
@@ -1132,7 +1142,12 @@ const SceneMgr = (function(){
     if(invalidRingMesh) invalidRingMesh.visible=false;
     if(invalidLabelMat){ invalidLabelMat.color.set(0xffffff); invalidLabelMat=null; }
     if(threadMesh) threadMesh.position.set(0,0,0);
-    tileGroup.forEach(t=> scene.remove(t.mesh));
+    // every other pooled asset below (labels/tokens/walls/grout) disposes its
+    // old geometry/material before rebuilding — tiles didn't, so every new
+    // puzzle (Play, Next puzzle, Daily) leaked one geometry + up to 64
+    // materials that stayed resident in GPU memory for the rest of the session
+    tileGroup.forEach(t=>{ scene.remove(t.mesh); t.mesh.material.dispose(); });
+    if(sharedTileGeo) sharedTileGeo.dispose();
     tileGroup = [];
     labelPool.forEach(s=>{ scene.remove(s); s.material.map.dispose(); s.material.dispose(); });
     labelPool = [];
@@ -1153,6 +1168,7 @@ const SceneMgr = (function(){
 
     // rounded, gently beveled tiles — a real curved rim instead of a hard box edge
     const tileGeo = makeRoundedTileGeometry(cellSize*0.94, cellSize*0.94, 0.14, cellSize*0.12);
+    sharedTileGeo = tileGeo;
     for(let r=0;r<rows;r++){
       for(let c=0;c<cols;c++){
         const mat = new THREE.MeshPhysicalMaterial({
@@ -1214,6 +1230,9 @@ const SceneMgr = (function(){
     dirLight.position.set(diag*1.15, diag*1.3, diag*0.65);
     dirLight.target.position.set(0,0,0);
     scene.add(dirLight.target);
+    // shadow-casting geometry (tiles) and the light itself just moved — force
+    // one recompute of the (otherwise static) shadow map for the new board
+    renderer.shadowMap.needsUpdate = true;
 
     applyTheme(currentTheme);
 
@@ -1490,10 +1509,19 @@ const SceneMgr = (function(){
     mouseVec.x = ((evt.clientX-rect.left)/rect.width)*2-1;
     mouseVec.y = -((evt.clientY-rect.top)/rect.height)*2+1;
     raycaster.setFromCamera(mouseVec, camera);
-    const hits = raycaster.intersectObjects(tileGroup.map(t=>t.mesh));
-    if(!hits.length) return null;
-    const ud = hits[0].object.userData;
-    return [ud.r, ud.c];
+    // the keyboard path never raycasts at all — it just computes the next
+    // cell directly — which is exactly why it felt smoother than mouse/touch.
+    // This used to test the ray against every tile's actual mesh geometry
+    // (rounded/beveled shapes, real triangles) on every pointermove, which is
+    // real per-event CPU work the keyboard path never pays. Since the camera
+    // always looks straight down at a flat, known grid, the cell under the
+    // pointer can be gotten directly from where the ray crosses y=0 — no mesh
+    // testing needed at all.
+    if(!raycaster.ray.intersectPlane(groundPlane, planeHit)) return null;
+    const c = Math.round(planeHit.x/cellSize + cols/2 - 0.5);
+    const r = Math.round(planeHit.z/cellSize + rows/2 - 0.5);
+    if(r<0 || c<0 || r>=rows || c>=cols) return null;
+    return [r,c];
   }
 
   function onPointerDown(e){
@@ -1502,13 +1530,20 @@ const SceneMgr = (function(){
     pressPulse = {t:0};
   }
   function onPointerMove(e){
+    if(e.buttons!==1) return; // not dragging — skip the raycast entirely
     const cell = pointerToCell(e);
-    if(e.buttons===1 && cell && onCellTap) onCellTap(cell, 'move');
+    if(cell && onCellTap) onCellTap(cell, 'move');
   }
   function onPointerUp(){ if(onCellTap) onCellTap(null,'up'); }
 
   function tick(){
     animFrame = requestAnimationFrame(tick);
+    // the loop is started once and never torn down, but the board is only
+    // ever visible on the "game" screen — without this, three.js kept doing
+    // a full render + shadow pass 60x/sec behind every menu, settings, and
+    // win screen too, competing with that UI's own main-thread work for no
+    // visible reason (this canvas isn't on screen) and draining battery
+    if(!sceneActive) return;
     if(introActive){
       const t = Math.min(1, (performance.now()-introStart)/700);
       introZoom = 1 + (1-easeOutCubic(t))*0.55;
@@ -1537,7 +1572,9 @@ const SceneMgr = (function(){
       threadHead.material.opacity = 0.38 + wave*0.16;
     }
     if(elasticActive){
-      const t = Math.min(1, (performance.now()-elasticStart)/260);
+      // tuned down from the original 260ms (felt delayed) and back up from
+      // a too-fast 150ms (felt abrupt/jerky) — 190ms is the middle ground
+      const t = Math.min(1, (performance.now()-elasticStart)/190);
       const e = easeOutCubic(t);
       const curLast = [
         elasticFrom[0] + (elasticTo[0]-elasticFrom[0])*e,
@@ -1647,6 +1684,7 @@ const SceneMgr = (function(){
 
   return {
     init, buildBoard, applyTheme, setCheckpoints, setWalls, updateBoardState, resize, flashInvalid, shakeOnly, playWinFlythrough,
+    setActive(v){ sceneActive = v; if(v) resize(); },
     set onCellTap(fn){ onCellTap = fn; },
     get __dbg(){ return { camera, renderer, scene, tileGroup, canvas, winFly }; }
   };
@@ -1707,6 +1745,13 @@ let timerHandle = null;
 function showScreen(name){
   Object.values(els.screens).forEach(s=> s.classList.remove('active'));
   els.screens[name].classList.add('active');
+  // the 3D canvas only ever shows behind the game board itself — #screen-win is
+  // its own fully opaque section with its own confetti canvas, and by the time
+  // it's shown the flythrough cinematic (which runs while we're still on
+  // 'game') is already finished, so keeping WebGL rendering alive here was
+  // pure waste: a full render pass fighting the confetti canvas for the same
+  // frame budget, which is what read as stutter on mobile right after the win.
+  SceneMgr.setActive(name==='game');
 }
 function formatTime(sec){
   sec = Math.max(0, Math.floor(sec));
@@ -1808,7 +1853,6 @@ function openHowTo(){
   // handled in CSS, so mirror it here too
   els.howtoBackdrop.classList.toggle('no-motion', !store.settings.motion);
   els.howtoBackdrop.classList.add('show');
-  if(!store.seenHowTo){ store.seenHowTo = true; persist(); }
 }
 function closeHowTo(){
   els.howtoBackdrop.classList.remove('show');
@@ -1827,9 +1871,6 @@ els.btnOpenHowtoGame.addEventListener('click', ()=>{
 });
 els.btnCloseHowto.addEventListener('click', closeHowTo);
 els.howtoBackdrop.addEventListener('click', e=>{ if(e.target===els.howtoBackdrop) closeHowTo(); });
-// first-ever launch: surface it automatically once, after the intro
-// transition has had a moment to settle rather than slamming it up instantly
-if(!store.seenHowTo){ setTimeout(openHowTo, 600); }
 els.btnClearData.addEventListener('click', ()=>{
   if(confirm('Clear all saved progress and stats?')){
     localStorage.removeItem(STORE_KEY);
@@ -1844,15 +1885,33 @@ els.btnMute.addEventListener('click', ()=>{ store.settings.sound=!store.settings
 /* =========================================================
    13. STARTING A PUZZLE
    ========================================================= */
+// FNV-1a — a compact, deterministic dedupe key. The history only needs to
+// tell "seen before" from "new", so a collision-tolerant 32-bit hash is fine;
+// storing the raw signature (every checkpoint coordinate concatenated) would
+// bloat localStorage for no benefit.
+function hashStr(str){
+  let h = 0x811c9dc5;
+  for(let i=0;i<str.length;i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h>>>0).toString(36);
+}
 function puzzleSignature(puzzle){
   const keys = Object.keys(puzzle.checkpoints).sort();
-  return puzzle.rows+'x'+puzzle.cols+'|'+keys.map(k=> k+':'+puzzle.checkpoints[k]).join(',');
+  const raw = puzzle.rows+'x'+puzzle.cols+'|'+keys.map(k=> k+':'+puzzle.checkpoints[k]).join(',');
+  return hashStr(raw);
 }
+
+// recent-puzzle signatures, kept in memory only — this just avoids handing
+// back the puzzle you were on a moment ago, not a durable record, so there's
+// no reason to grow localStorage for it (cleared on reload, which is fine)
+const puzzleHistory = {easy:[], medium:[], hard:[], extreme:[]};
 
 // the actual retry-until-fresh generation, with no UI side effects — reused
 // both for an on-demand start and for silently prefetching in the background
 async function generateFreshPuzzle(diffKey){
-  const hist = store.history[diffKey] = store.history[diffKey]||[];
+  const hist = puzzleHistory[diffKey] = puzzleHistory[diffKey]||[];
   const seen = new Set(hist);
   let puzzle=null, seedStr=null, sig=null;
   for(let tries=0; tries<4; tries++){
@@ -1898,11 +1957,10 @@ async function startPuzzle(diffKey){
     const result = await pending;
     if(!result){ alert('Could not generate a puzzle — please try again.'); return; }
     const {puzzle, seedStr, sig} = result;
-    const hist = store.history[diffKey] = store.history[diffKey]||[];
+    const hist = puzzleHistory[diffKey] = puzzleHistory[diffKey]||[];
     if(!hist.includes(sig)){
       hist.push(sig);
-      if(hist.length>300) hist.splice(0, hist.length-300);
-      persist();
+      if(hist.length>150) hist.splice(0, hist.length-150);
     }
     // number labels are baked into a canvas texture once per board — if the
     // Space Grotesk webfont hasn't finished loading yet (very likely on a cold
@@ -2156,6 +2214,33 @@ function checkWin(){
   return nextNeededNumber() === game.totalNumbers+1;
 }
 
+// A fast mouse drag can jump several cells between two consecutive
+// pointermove samples — mouse sampling is much coarser than the actual
+// motion, unlike keyboard where every input IS one cell. Only ever accepting
+// a single adjacent step meant anything further away just got rejected
+// outright, silently dropping every cell in between — that's what read as
+// the rope "not keeping up" specifically for mouse (and fast touch drags).
+// This walks the path one cell at a time toward the target instead, so a
+// quick drag still fills in every cell it crossed.
+function extendPathTowards(target){
+  let changed = false, guard = 0;
+  while(guard++ < 200){
+    const path = game.userPath;
+    const last = path.length ? path[path.length-1] : null;
+    if(last && last[0]===target[0] && last[1]===target[1]) break;
+    let stepCell = target;
+    if(last){
+      const dr = target[0]-last[0], dc = target[1]-last[1];
+      if(Math.abs(dr)+Math.abs(dc) > 1){
+        stepCell = Math.abs(dr)>=Math.abs(dc) ? [last[0]+Math.sign(dr), last[1]] : [last[0], last[1]+Math.sign(dc)];
+      }
+    }
+    if(!tryExtendTo(stepCell)) break;
+    changed = true;
+  }
+  return changed;
+}
+
 function handleCellTap(cell, phase){
   if(!game || game.finished || game.paused) return;
   if(phase==='down'){
@@ -2164,7 +2249,7 @@ function handleCellTap(cell, phase){
     if(tryExtendTo(cell)) onBoardChanged();
   } else if(phase==='move'){
     if(!cell || !game.dragging) return;
-    if(tryExtendTo(cell)) onBoardChanged();
+    if(extendPathTowards(cell)) onBoardChanged();
   } else if(phase==='up'){
     game.dragging = false;
   }
@@ -2188,7 +2273,7 @@ function onBoardChanged(){
    15. UNDO / RESTART / HINT / PAUSE
    ========================================================= */
 function undoMove(){
-  if(!game || game.userPath.length===0) return;
+  if(!game || game.finished || game.userPath.length===0) return;
   game.userPath.pop();
   game.moves++;
   Audio_.retract();
@@ -2198,9 +2283,9 @@ function undoMove(){
 els.btnUndo.addEventListener('click', ()=>{ undoMove(); els.canvas.focus({preventScroll:true}); });
 
 els.btnRestart.addEventListener('click', ()=>{
-  if(!game) return;
+  if(!game || game.finished) return;
   game.userPath = [];
-  game.moves = 0; game.hintsUsed = 0;
+  game.moves = 0;
   game.startedAt = Date.now(); game.elapsedBefore = 0;
   persist();
   onBoardChanged();
@@ -2208,7 +2293,7 @@ els.btnRestart.addEventListener('click', ()=>{
 });
 
 els.btnHint.addEventListener('click', ()=>{
-  if(!game || game.hintsUsed>=game.hintsMax) return;
+  if(!game || game.finished || game.hintsUsed>=game.hintsMax) return;
   const sol = game.solution;
   const up = game.userPath;
   let isPrefix = up.length < sol.length;
@@ -2317,6 +2402,10 @@ function updateHud(){
    18. WIN FLOW
    ========================================================= */
 function finishLevel(){
+  // defense-in-depth: checkWin()->finishLevel() should now be unreachable a
+  // second time (Undo/Restart/Hint are blocked once finished), but this
+  // keeps a stray path from double-counting playtime/best-time/daily streak
+  if(game.finished) return;
   game.finished = true;
   if(timerHandle) clearInterval(timerHandle);
   const elapsed = game.elapsedBefore + (game.paused?0:(Date.now()-game.startedAt)/1000);
@@ -2402,17 +2491,39 @@ function leaveToMenu(){
   prefetchDailyPuzzle();
   showScreen('start');
 }
+// same pause bookkeeping as the actual Pause button — otherwise the timer
+// keeps running behind this confirmation, and canceling out of it (changing
+// your mind and staying) silently added however long you spent deciding
+function pauseForLeaveConfirm(){
+  if(!game || game.paused) return;
+  game.paused = true;
+  game.elapsedBefore += (Date.now()-game.startedAt)/1000;
+}
+function unpauseFromLeaveConfirm(){
+  if(!game || !game.paused) return;
+  game.paused = false;
+  game.startedAt = Date.now();
+}
 els.btnBack.addEventListener('click', ()=>{
   // only interrupt with a confirmation once the player has actually made a
   // move — bouncing straight back out of a fresh/untouched puzzle needs none
   if(game && !game.finished && game.moves>0){
+    pauseForLeaveConfirm();
     els.leaveBackdrop.classList.add('show');
   } else {
     leaveToMenu();
   }
 });
-els.btnLeaveCancel.addEventListener('click', ()=> els.leaveBackdrop.classList.remove('show'));
-els.leaveBackdrop.addEventListener('click', e=>{ if(e.target===els.leaveBackdrop) els.leaveBackdrop.classList.remove('show'); });
+els.btnLeaveCancel.addEventListener('click', ()=>{
+  els.leaveBackdrop.classList.remove('show');
+  unpauseFromLeaveConfirm();
+});
+els.leaveBackdrop.addEventListener('click', e=>{
+  if(e.target===els.leaveBackdrop){
+    els.leaveBackdrop.classList.remove('show');
+    unpauseFromLeaveConfirm();
+  }
+});
 els.btnLeaveConfirm.addEventListener('click', ()=>{
   els.leaveBackdrop.classList.remove('show');
   leaveToMenu();
