@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>ZipLine — one path, every cell</title>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7513912315104737"
+        crossorigin="anonymous"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -78,6 +80,12 @@ button{font-family:inherit;}
 
 .card{width:min(440px,92vw); background:var(--bg-elevated); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px; margin-top:18px; box-shadow:var(--shadow-soft); backdrop-filter:blur(6px);}
 .card h2{font-family:var(--font-display); font-size:.75rem; text-transform:uppercase; letter-spacing:.12em; color:var(--ink-faint); margin:0 0 10px;}
+
+/* ad slots only ever sit on the menu and win screens — never over the board,
+   so an ad can't cover the puzzle or eat a tap meant for the game */
+.ad-slot{width:100%; max-width:min(440px,92vw); margin:14px auto 0; overflow:hidden; border-radius:var(--radius-md); display:flex; align-items:center; justify-content:center;}
+.ad-slot:empty{display:none;}
+.ad-slot .adsbygoogle{width:100%;}
 .diff-grid{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
 .diff-grid .daily-tile:last-child{grid-column:1 / -1;}
 .daily-tile{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset;}
@@ -254,6 +262,15 @@ button{font-family:inherit;}
         <button class="btn btn-ghost" id="btn-open-howto-menu"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.6-2.3 1.7-2.3 3.3"/><path d="M12 17.2h.01"/></svg> How to Play</button>
       </div>
     </div>
+
+    <!-- Ad slot: menu screen only, below the difficulty card — never over the
+         board, never seen mid-puzzle. Uncomment once the AdSense ad unit is
+         created and swap in its real slot id. -->
+    <div class="ad-slot" id="ad-slot-start">
+      <!--
+      <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-7513912315104737" data-ad-slot="YOUR_AD_SLOT_ID" data-ad-format="auto" data-full-width-responsive="true"></ins>
+      -->
+    </div>
   </section>
 
   <!-- ============ GAME ============ -->
@@ -307,6 +324,15 @@ button{font-family:inherit;}
       <div class="row-actions">
         <button class="btn btn-ghost" id="btn-win-menu">Menu</button>
         <button class="btn btn-primary" id="btn-win-next">Next puzzle</button>
+      </div>
+
+      <!-- Ad slot: shown only on this "solved!" breather screen, after the
+           player has already finished — never mid-puzzle. Uncomment once the
+           AdSense ad unit is created and swap in its real slot id. -->
+      <div class="ad-slot" id="ad-slot-win">
+        <!--
+        <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-7513912315104737" data-ad-slot="YOUR_AD_SLOT_ID" data-ad-format="auto" data-full-width-responsive="true"></ins>
+        -->
       </div>
     </div>
   </section>

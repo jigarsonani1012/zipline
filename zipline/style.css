@@ -181,6 +181,25 @@ button {
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(6px);
 }
+
+/* ad slots only ever sit on the menu and win screens — never over the board,
+   so an ad can't cover the puzzle or eat a tap meant for the game */
+.ad-slot {
+  width: 100%;
+  max-width: min(440px, 92vw);
+  margin: 14px auto 0;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ad-slot:empty {
+  display: none;
+}
+.ad-slot .adsbygoogle {
+  width: 100%;
+}
 .card h2 {
   font-family: var(--font-display);
   font-size: 0.75rem;

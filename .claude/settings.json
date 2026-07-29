@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\\\\\(x86\\\\\\)/Microsoft/Edge/Application/**)",
+      "Bash(\"/c/Program Files \\(x86\\)/Microsoft/Edge/Application/msedge.exe\" --version)",
+      "Bash(where ffmpeg *)",
+      "Bash(ffmpeg -version)",
+      "Read(//c/Users/admin/AppData/Local/Temp/claude/d--practicejigar-j/6d02253c-4b1a-4e89-aa15-6f73e2135ebe/scratchpad/covers/**)",
+      "Bash(node record.js)",
+      "Bash(/c/Users/admin/AppData/Local/ms-playwright/ffmpeg-1011/ffmpeg-win64.exe -y -i /c/Users/admin/AppData/Local/Temp/claude/d--practicejigar-j/6d02253c-4b1a-4e89-aa15-6f73e2135ebe/scratchpad/covers/preview-landscape.webm -c:v libx264 -pix_fmt yuv420p -crf 18 -preset slow -movflags +faststart /c/Users/admin/AppData/Local/Temp/claude/d--practicejigar-j/6d02253c-4b1a-4e89-aa15-6f73e2135ebe/scratchpad/covers/preview-landscape-1920x1080.mp4)"
+    ]
+  }
+}
